@@ -14,12 +14,18 @@ import {
   type EditorState,
 } from './editor';
 import { useLinePlacementDrag } from './hooks/useLinePlacementDrag';
+import { generateLrc } from './lrc';
 import { useTrackSourceFlow } from './hooks/useTrackSourceFlow';
 import {
   useAudioController,
 } from './hooks/useAudioController';
 
 type SessionAction = EditorAction | { type: 'replaceDocument'; document: EditorDocument };
+
+function buildLrcFilename(title: string) {
+  const base = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ');
+  return `${base || 'lyric-alignment'}.lrc`;
+}
 
 function sessionReducer(state: EditorState | null, action: SessionAction): EditorState | null {
   if (action.type === 'replaceDocument') return createEditorState(action.document);
@@ -101,6 +107,7 @@ export default function App() {
   const playingLineId = editor
     ? getPlayingLineId(editor, playback.currentTimeMs)
     : null;
+  const completedSegmentCount = editor ? Object.keys(editor.segments).length : 0;
   const sourceLabel = editor?.document.source.kind === 'seeded' ? 'Seeded sample' : 'Local file';
   const addLine = useCallback((afterLineId: string | null, text: string) => {
     dispatch({ type: 'addLine', afterLineId, text });
@@ -125,6 +132,20 @@ export default function App() {
     resetWorkspacePreviews();
     setIsChangingTrack(true);
   }, [resetWorkspacePreviews]);
+  const exportLrc = useCallback(() => {
+    if (!editor) return;
+
+    const content = generateLrc(editor);
+    if (!content) return;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = buildLrcFilename(editor.document.title);
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [editor]);
 
   if (!editor || isChangingTrack) {
     return (
@@ -190,6 +211,14 @@ export default function App() {
                     {formatTime(playback.currentTimeMs)} / {formatTime(editor.document.durationMs)}
                   </strong>
                 </div>
+                <button
+                  type="button"
+                  className="toolbar-export-button"
+                  onClick={exportLrc}
+                  disabled={completedSegmentCount === 0}
+                >
+                  Export LRC
+                </button>
                 <button type="button" className="toolbar-change-button" onClick={openTrackSetup}>
                   Change track
                 </button>

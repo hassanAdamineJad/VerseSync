@@ -452,6 +452,10 @@ kbd {
   @apply min-h-10 border-ink-700/80 bg-ink-900/88 text-stone-200;
 }
 
+.toolbar-export-button {
+  @apply min-h-10 border-ink-700/80 bg-ink-900/88 text-stone-200;
+}
+
 .toolbar-seek {
   @apply block min-w-0;
 }

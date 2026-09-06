@@ -157,3 +157,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This keeps lyric text editing fast and local to the selected row while preserving stable row layout and avoiding accidental timing or capture mutations.
 - **Rejected alternatives:** Opening a separate edit panel, auto-growing editors that shift neighboring rows, and committing text changes on every keystroke.
 - **Consequences:** Rows reserve stable space for display, editing, and validation, and destructive actions must suppress blur-save when they intentionally interrupt editing.
+
+### 2026-09-06 — Decision: Export LRC directly from current in-memory segments
+
+- **Context:** The editor now needs an export path for the current lyric alignment without introducing persistence or depending on the fixture backend.
+- **Choice:** Generate `.lrc` text from the current completed segments only, resolve lyric text by stable `lineId`, sort by `startMs` with lyric-sheet order as the tie-breaker, and download it with browser Blob APIs from the workspace header.
+- **Rationale:** This exports exactly what the user has in memory, preserves repeated and edited lyrics, and keeps LRC generation as a pure domain formatting step rather than a server concern.
+- **Rejected alternatives:** Exporting untimed placeholder entries, relying on backend routes for file creation, and deriving lyric identity from array position or displayed text at export time.
+- **Consequences:** Overlaps and equal timestamps remain valid export cases, untimed lines are omitted, and the UI needs only a guarded client-side download action when timed segments exist.
