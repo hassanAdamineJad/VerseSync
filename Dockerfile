@@ -4,13 +4,11 @@ ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH SKIP_PLAYWRIGHT_BROWSERS=1
 RUN corepack enable
 WORKDIR /app
 
-# Manifests first so dependency installs cache independently of source changes.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY scripts/ ./scripts/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
-# Not --frozen-lockfile: the lockfile is resolved on the author's machine, and
-# esbuild's platform binary differs here.
+
 RUN pnpm install
 
 COPY . .
@@ -23,5 +21,6 @@ CMD ["node", "--disable-warning=ExperimentalWarning", "src/server.js"]
 
 FROM base AS web
 WORKDIR /app/apps/web
+RUN pnpm build
 EXPOSE 5173
-CMD ["pnpm", "dev", "--host", "0.0.0.0"]
+CMD ["sh", "-c", "pnpm exec vite preview --host 0.0.0.0 --port ${PORT:-5173}"]
