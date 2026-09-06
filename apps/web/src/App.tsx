@@ -102,6 +102,21 @@ export default function App() {
     ? getPlayingLineId(editor, playback.currentTimeMs)
     : null;
   const sourceLabel = editor?.document.source.kind === 'seeded' ? 'Seeded sample' : 'Local file';
+  const addLine = useCallback((afterLineId: string | null, text: string) => {
+    dispatch({ type: 'addLine', afterLineId, text });
+  }, []);
+  const editLineText = useCallback((lineId: string, text: string) => {
+    dispatch({ type: 'editLineText', lineId, text });
+  }, []);
+  const deleteLine = useCallback((lineId: string) => {
+    setDragPreviewSegments(null);
+    cancelPlacementDrag();
+    dispatch({ type: 'deleteLine', lineId });
+  }, [cancelPlacementDrag]);
+  const removeTiming = useCallback((lineId: string) => {
+    setDragPreviewSegments(null);
+    dispatch({ type: 'removeTiming', lineId });
+  }, []);
   const closeTrackSetup = useCallback(() => {
     cancelReplacement();
     setIsChangingTrack(false);
@@ -222,9 +237,13 @@ export default function App() {
             editor={editor}
             playingLineId={playingLineId}
             activePlacementLineId={linePlacementPreview?.lineId ?? null}
-            onSelect={(lineId) => dispatch({ type: 'select', lineId })}
+            onSelect={(lineId: string) => dispatch({ type: 'select', lineId })}
+            onInspect={(lineId: string) => dispatch({ type: 'inspect', lineId })}
+            onAddLine={addLine}
+            onEditLineText={editLineText}
+            onDeleteLine={deleteLine}
             onStartPlacementDrag={beginPlacementDrag}
-            onPlacementDragLostPointerCapture={(pointerId) => {
+            onPlacementDragLostPointerCapture={(pointerId: number) => {
               if (linePlacementPreview?.pointerId === pointerId) {
                 cancelPlacementDrag();
               }
@@ -252,9 +271,10 @@ export default function App() {
           <SegmentInspector
             editor={editor}
             dragPreviewSegments={dragPreviewSegments}
-            onApply={(lineId, startMs, endMs) =>
+            onApply={(lineId: string, startMs: number, endMs: number) =>
               dispatch({ type: 'editSegment', lineId, startMs, endMs })
             }
+            onRemoveTiming={removeTiming}
           />
         </div>
       </div>

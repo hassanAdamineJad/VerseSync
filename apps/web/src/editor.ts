@@ -52,6 +52,10 @@ export type EditorState = {
 export type EditorAction =
   | { type: 'select'; lineId: string }
   | { type: 'inspect'; lineId: string }
+  | { type: 'addLine'; afterLineId: string | null; text: string }
+  | { type: 'editLineText'; lineId: string; text: string }
+  | { type: 'deleteLine'; lineId: string }
+  | { type: 'removeTiming'; lineId: string }
   | { type: 'stamp'; atMs: number }
   | { type: 'finish'; atMs: number }
   | { type: 'mediaEnded'; durationMs: number }
@@ -160,6 +164,37 @@ function firstUntimedLineId(
   segments: Record<string, CompletedSegment>,
 ): string | null {
   return state.document.lines.find((line) => segments[line.id] == null)?.id ?? null;
+}
+
+function reindexLines(lines: LyricLine[]): LyricLine[] {
+  return lines.map((line, index) =>
+    line.index === index ? line : { ...line, index },
+  );
+}
+
+function buildStateWithLines(
+  state: EditorState,
+  lines: LyricLine[],
+  segments: Record<string, CompletedSegment>,
+  selectedLineId: string | null,
+): EditorState {
+  const nextState = {
+    ...state,
+    document: {
+      ...state.document,
+      lines,
+    },
+    segments,
+    selectedLineId,
+  };
+
+  return {
+    ...nextState,
+    captureCursorLineId: state.openSegment
+      ? nextUntimedLineId(nextState, state.openSegment.lineId, segments) ??
+        firstUntimedLineId(nextState, segments)
+      : selectedLineId,
+  };
 }
 
 function invalidCloseMessage(startMs: number): string {
@@ -374,6 +409,117 @@ function editSegment(
   return applySegmentUpdates(state, [{ lineId, startMs, endMs }]);
 }
 
+function addLine(
+  state: EditorState,
+  afterLineId: string | null,
+  text: string,
+): EditorState {
+  const trimmedText = text.trim();
+  if (!trimmedText) {
+    return { ...state, message: 'Enter lyric text before adding a line.' };
+  }
+
+  const currentIndex = afterLineId
+    ? state.document.lines.findIndex((line) => line.id === afterLineId)
+    : -1;
+  const insertAt = currentIndex >= 0 ? currentIndex + 1 : state.document.lines.length;
+  const nextLines = reindexLines([
+    ...state.document.lines.slice(0, insertAt),
+    {
+      id: crypto.randomUUID(),
+      index: insertAt,
+      text: trimmedText,
+    },
+    ...state.document.lines.slice(insertAt),
+  ]);
+  const selectedLineId = nextLines[insertAt]?.id ?? null;
+
+  return {
+    ...buildStateWithLines(state, nextLines, state.segments, selectedLineId),
+    message: null,
+    dirty: true,
+  };
+}
+
+function editLineText(
+  state: EditorState,
+  lineId: string,
+  text: string,
+): EditorState {
+  const trimmedText = text.trim();
+  if (!trimmedText) {
+    return { ...state, message: 'Enter lyric text before saving this line.' };
+  }
+
+  const lineIndex = state.document.lines.findIndex((line) => line.id === lineId);
+  if (lineIndex < 0) return state;
+
+  const nextLines = state.document.lines.map((line) =>
+    line.id === lineId ? { ...line, text: trimmedText } : line,
+  );
+
+  return {
+    ...state,
+    document: {
+      ...state.document,
+      lines: nextLines,
+    },
+    message: null,
+    dirty: true,
+  };
+}
+
+function removeTiming(state: EditorState, lineId: string): EditorState {
+  if (!state.segments[lineId]) {
+    return { ...state, message: 'Only completed lines can have timing removed.' };
+  }
+
+  const { [lineId]: _removed, ...segments } = state.segments;
+  const selectedLineId = state.selectedLineId;
+  const nextState = buildStateWithLines(
+    state,
+    state.document.lines,
+    segments,
+    selectedLineId,
+  );
+
+  return {
+    ...nextState,
+    message: 'Timing removed. This line is ready to capture or place again.',
+    dirty: true,
+  };
+}
+
+function deleteLine(state: EditorState, lineId: string): EditorState {
+  const lineIndex = state.document.lines.findIndex((line) => line.id === lineId);
+  if (lineIndex < 0) return state;
+
+  if (state.document.lines.length === 1) {
+    return { ...state, message: 'Add another lyric line before deleting the final remaining line.' };
+  }
+
+  if (state.openSegment?.lineId === lineId) {
+    return {
+      ...state,
+      message: 'Finish the current capture before deleting this line.',
+    };
+  }
+
+  const nextLines = reindexLines(
+    state.document.lines.filter((line) => line.id !== lineId),
+  );
+  const { [lineId]: _removed, ...segments } = state.segments;
+  const selectedLineId =
+    nextLines[lineIndex]?.id ?? nextLines[lineIndex - 1]?.id ?? null;
+  const nextState = buildStateWithLines(state, nextLines, segments, selectedLineId);
+
+  return {
+    ...nextState,
+    message: null,
+    dirty: true,
+  };
+}
+
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'select': {
@@ -393,6 +539,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         message: null,
       };
     }
+    case 'addLine':
+      return addLine(state, action.afterLineId, action.text);
+    case 'editLineText':
+      return editLineText(state, action.lineId, action.text);
+    case 'deleteLine':
+      return deleteLine(state, action.lineId);
+    case 'removeTiming':
+      return removeTiming(state, action.lineId);
     case 'stamp':
       return stamp(state, action.atMs);
     case 'finish':

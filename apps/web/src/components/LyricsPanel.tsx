@@ -1,4 +1,10 @@
-import { useEffect, useRef } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { formatTime, type EditorState } from '../editor';
 
 type Props = {
@@ -6,6 +12,10 @@ type Props = {
   playingLineId: string | null;
   activePlacementLineId: string | null;
   onSelect: (lineId: string) => void;
+  onInspect: (lineId: string) => void;
+  onAddLine: (afterLineId: string | null, text: string) => void;
+  onEditLineText: (lineId: string, text: string) => void;
+  onDeleteLine: (lineId: string) => void;
   onStartPlacementDrag: (
     lineId: string,
     lineIndex: number,
@@ -17,18 +27,109 @@ type Props = {
   onPlacementDragLostPointerCapture: (pointerId: number) => void;
 };
 
+type AddPanelState = { value: string; error: string | null } | null;
+type EditState = {
+  lineId: string;
+  initialValue: string;
+  value: string;
+  error: string | null;
+} | null;
+type ConfirmDeleteState = { lineId: string; text: string } | null;
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path
+        d="M4.5 5.5h11"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M7.5 5.5V4.4c0-.8.6-1.4 1.4-1.4h2.2c.8 0 1.4.6 1.4 1.4v1.1"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M6.2 5.5 7 16.1c.1.8.7 1.4 1.5 1.4h3c.8 0 1.4-.6 1.5-1.4l.8-10.6"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M8.6 8.5v5.1M11.4 8.5v5.1"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle
+        cx="10"
+        cy="10"
+        r="7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M10 6.2v4.2l2.9 1.8"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </svg>
+  );
+}
+
+function getTrimmedTextError(value: string, verb: 'add' | 'save') {
+  return value.trim()
+    ? null
+    : verb === 'add'
+      ? 'Enter lyric text before adding a line.'
+      : 'Enter lyric text before saving this line.';
+}
+
 export function LyricsPanel({
   editor,
   playingLineId,
   activePlacementLineId,
   onSelect,
+  onInspect,
+  onAddLine,
+  onEditLineText,
+  onDeleteLine,
   onStartPlacementDrag,
   onPlacementDragLostPointerCapture,
 }: Props) {
   const listRef = useRef<HTMLOListElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const suppressNextBlurSaveRef = useRef(false);
+  const focusSelectedRowAfterRenderRef = useRef(false);
   const completedCount = Object.keys(editor.segments).length;
   const activeCaptureLineId = editor.openSegment?.lineId ?? null;
+  const selectedLine =
+    editor.document.lines.find((line) => line.id === editor.selectedLineId) ?? null;
+  const [addPanelState, setAddPanelState] = useState<AddPanelState>(null);
+  const [editState, setEditState] = useState<EditState>(null);
+  const [confirmDeleteState, setConfirmDeleteState] = useState<ConfirmDeleteState>(null);
 
   useEffect(() => {
     if (!activeCaptureLineId) return;
@@ -54,88 +155,384 @@ export function LyricsPanel({
     });
   }, [activeCaptureLineId]);
 
+  useEffect(() => {
+    if (!addPanelState) return;
+    addInputRef.current?.focus();
+    addInputRef.current?.select();
+  }, [addPanelState]);
+
+  useEffect(() => {
+    if (!editState) return;
+    editInputRef.current?.focus({ preventScroll: true });
+    editInputRef.current?.select();
+  }, [editState?.lineId]);
+
+  useEffect(() => {
+    if (confirmDeleteState && confirmDeleteState.lineId !== editor.selectedLineId) {
+      setConfirmDeleteState(null);
+    }
+  }, [confirmDeleteState, editor.selectedLineId]);
+
+  useEffect(() => {
+    if (!focusSelectedRowAfterRenderRef.current || !selectedLine) return;
+    rowRefs.current.get(selectedLine.id)?.focus();
+    focusSelectedRowAfterRenderRef.current = false;
+  }, [selectedLine]);
+
+  const focusSelectedRow = () => {
+    if (!selectedLine) return;
+    rowRefs.current.get(selectedLine.id)?.focus();
+  };
+
+  const closeAddPanel = () => {
+    setAddPanelState(null);
+    window.requestAnimationFrame(() => addButtonRef.current?.focus());
+  };
+
+  const closeEditor = (focusSelection: boolean) => {
+    setEditState(null);
+    if (!focusSelection) return;
+    window.requestAnimationFrame(() => focusSelectedRow());
+  };
+
+  const submitAddLine = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!addPanelState) return;
+
+    const error = getTrimmedTextError(addPanelState.value, 'add');
+    if (error) {
+      setAddPanelState({ ...addPanelState, error });
+      addInputRef.current?.focus();
+      return;
+    }
+
+    focusSelectedRowAfterRenderRef.current = true;
+    onAddLine(editor.selectedLineId, addPanelState.value);
+    setAddPanelState(null);
+  };
+
+  const openEditor = (lineId: string, text: string) => {
+    onInspect(lineId);
+    setConfirmDeleteState(null);
+    setEditState((current) =>
+      current?.lineId === lineId
+        ? current
+        : {
+            lineId,
+            initialValue: text,
+            value: text,
+            error: null,
+          },
+    );
+  };
+
+  const commitEdit = (
+    lineId: string,
+    value: string,
+    initialValue: string,
+    options?: { focusSelection?: boolean },
+  ) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setEditState((current) =>
+        current?.lineId === lineId
+          ? { ...current, error: getTrimmedTextError(current.value, 'save') }
+          : current,
+      );
+      return false;
+    }
+
+    if (trimmed === initialValue) {
+      closeEditor(options?.focusSelection ?? false);
+      return true;
+    }
+
+    focusSelectedRowAfterRenderRef.current = options?.focusSelection ?? true;
+    onEditLineText(lineId, value);
+    setEditState(null);
+    return true;
+  };
+
+  const requestDeleteLine = (lineId: string, text: string, hasSegment: boolean) => {
+    if (editState?.lineId === lineId) {
+      suppressNextBlurSaveRef.current = true;
+      setEditState(null);
+    }
+    if (hasSegment) {
+      onInspect(lineId);
+      setConfirmDeleteState({ lineId, text });
+      return;
+    }
+    onDeleteLine(lineId);
+  };
+
   return (
     <section className="lyrics-panel" aria-labelledby="lyrics-title">
-      <div className="section-heading">
+      <div className="section-heading lyrics-heading">
         <div>
           <p className="eyebrow">Lyric sheet</p>
           <h2 id="lyrics-title">Lines</h2>
         </div>
-        <span className="line-progress">
-          {completedCount} / {editor.document.lines.length} timed
-        </span>
+        <div className="lyrics-toolbar">
+          <span className="line-progress">
+            {completedCount} / {editor.document.lines.length} timed
+          </span>
+          <button
+            ref={addButtonRef}
+            type="button"
+            className="lyrics-add-button"
+            onClick={() => setAddPanelState({ value: '', error: null })}
+          >
+            + Add line
+          </button>
+        </div>
       </div>
+
+      {addPanelState ? (
+        <form className="lyrics-inline-editor" onSubmit={submitAddLine}>
+          <label>
+            <span className="sr-only">New lyric line text</span>
+            <input
+              ref={addInputRef}
+              type="text"
+              value={addPanelState.value}
+              onChange={(event) =>
+                setAddPanelState({
+                  value: event.target.value,
+                  error: null,
+                })
+              }
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return;
+                event.preventDefault();
+                closeAddPanel();
+              }}
+              placeholder="Add a lyric line after the current selection"
+              aria-invalid={addPanelState.error ? 'true' : 'false'}
+              aria-describedby={addPanelState.error ? 'lyrics-inline-editor-error' : undefined}
+            />
+          </label>
+          <div className="lyrics-inline-editor-actions">
+            <button type="submit" className="lyrics-inline-submit">
+              Add
+            </button>
+            <button
+              type="button"
+              className="lyrics-inline-cancel"
+              onClick={closeAddPanel}
+            >
+              Cancel
+            </button>
+          </div>
+          {addPanelState.error ? (
+            <p id="lyrics-inline-editor-error" className="form-error" role="alert">
+              {addPanelState.error}
+            </p>
+          ) : null}
+        </form>
+      ) : null}
 
       <ol ref={listRef} className="lyric-list">
         {editor.document.lines.map((line) => {
           const segment = editor.segments[line.id];
-          const isOpen = editor.openSegment?.lineId === line.id;
           const isSelected = editor.selectedLineId === line.id;
+          const isEditing = editState?.lineId === line.id;
           const isPlaying = playingLineId === line.id;
-          const stateLabel = isOpen ? 'Capturing' : segment ? 'Completed' : 'Untimed';
-          const canPlaceOnTimeline = !segment && !isOpen;
+          const canPlaceOnTimeline = !segment && editor.openSegment?.lineId !== line.id;
+          const canDeleteLine =
+            editor.document.lines.length > 1 && editor.openSegment?.lineId !== line.id;
+          const deleteHint =
+            editor.openSegment?.lineId === line.id
+              ? 'Finish the current capture before deleting this line.'
+              : editor.document.lines.length === 1
+                ? 'Add another lyric line before deleting the final remaining line.'
+                : null;
+          const timeChipLabel = segment ? formatTime(segment.startMs) : '00:00:00';
+          const timeChipTitle = segment
+            ? `Start time ${formatTime(segment.startMs)}`
+            : 'Not timed';
+          const showDeleteConfirmation = confirmDeleteState?.lineId === line.id;
 
           return (
-            <li key={line.id} className="lyric-row-shell">
-              <button
-                type="button"
-                className="lyric-row"
-                ref={(element) => {
-                  if (element) rowRefs.current.set(line.id, element);
-                  else rowRefs.current.delete(line.id);
-                }}
+            <li key={line.id} className="lyric-row-stack">
+              <div
+                className="lyric-row-card"
                 data-selected={isSelected || undefined}
+                data-editing={isEditing || undefined}
                 data-playing={isPlaying || undefined}
-                data-capturing={isOpen || undefined}
-                aria-pressed={isSelected}
-                onClick={() => onSelect(line.id)}
               >
-                <span className="lyric-index">{String(line.index + 1).padStart(2, '0')}</span>
-                <span className="lyric-copy">
-                  <span className="lyric-text">{line.text}</span>
-                  <span className="lyric-time">
-                    {segment
-                      ? `${formatTime(segment.startMs)} – ${formatTime(segment.endMs)}`
-                      : isOpen
-                        ? `Opened ${formatTime(editor.openSegment?.startMs ?? 0)}`
-                        : 'Ready to time'}
-                  </span>
-                </span>
-                <span className="line-labels">
-                  <span className="line-state">{stateLabel}</span>
-                  {isSelected && <span>Selected</span>}
-                  {isPlaying && <span>Playing</span>}
-                </span>
-              </button>
-              {canPlaceOnTimeline ? (
-                <button
-                  type="button"
-                  className="lyric-drag-handle"
-                  data-dragging={activePlacementLineId === line.id || undefined}
-                  title="Drag onto timeline to place"
-                  aria-label={`Drag ${line.text} onto timeline to place`}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                  onPointerDown={(event) => {
-                    if (event.button !== 0) return;
-                    onStartPlacementDrag(
-                      line.id,
-                      line.index,
-                      line.text,
-                      event.pointerId,
-                      event.clientX,
-                      event.clientY,
-                    );
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                  }}
-                  onLostPointerCapture={(event) => {
-                    onPlacementDragLostPointerCapture(event.pointerId);
-                  }}
+                <div className="lyric-row-main">
+                  {canPlaceOnTimeline ? (
+                    <button
+                      type="button"
+                      className="lyric-drag-handle"
+                      data-dragging={activePlacementLineId === line.id || undefined}
+                      title="Drag onto timeline to place"
+                      aria-label={`Drag ${line.text} onto timeline to place`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        onStartPlacementDrag(
+                          line.id,
+                          line.index,
+                          line.text,
+                          event.pointerId,
+                          event.clientX,
+                          event.clientY,
+                        );
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                      }}
+                      onLostPointerCapture={(event) => {
+                        onPlacementDragLostPointerCapture(event.pointerId);
+                      }}
+                    >
+                      <span className="lyric-drag-grip" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <span className="lyric-drag-spacer" aria-hidden="true" />
+                  )}
+
+                  <button
+                    type="button"
+                    className="lyric-time-chip"
+                    aria-pressed={isSelected}
+                    aria-label={timeChipTitle}
+                    title={timeChipTitle}
+                    onClick={() => onSelect(line.id)}
+                  >
+                    <ClockIcon />
+                    <span
+                      className="lyric-time-chip-value"
+                      data-empty={segment == null || undefined}
+                      aria-hidden="true"
+                    >
+                      {timeChipLabel}
+                    </span>
+                  </button>
+
+                  {isEditing ? (
+                    <label className="lyric-edit-field">
+                      <span className="sr-only">Edit lyric text</span>
+                      <input
+                        ref={editInputRef}
+                        type="text"
+                        value={editState.value}
+                        onChange={(event) =>
+                          setEditState((current) =>
+                            current?.lineId === line.id
+                              ? { ...current, value: event.target.value, error: null }
+                              : current,
+                          )
+                        }
+                        onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
+                          if (event.nativeEvent.isComposing) return;
+
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            closeEditor(true);
+                            return;
+                          }
+
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void commitEdit(
+                              line.id,
+                              editState.value,
+                              editState.initialValue,
+                              { focusSelection: true },
+                            );
+                          }
+                        }}
+                        onBlur={() => {
+                          if (suppressNextBlurSaveRef.current) {
+                            suppressNextBlurSaveRef.current = false;
+                            return;
+                          }
+                          if (!editState || editState.lineId !== line.id) return;
+                          void commitEdit(line.id, editState.value, editState.initialValue);
+                        }}
+                        aria-invalid={editState.error ? 'true' : 'false'}
+                        aria-describedby={editState.error ? `lyric-edit-error-${line.id}` : undefined}
+                      />
+                    </label>
+                  ) : (
+                    <button
+                      type="button"
+                      className="lyric-text-trigger"
+                      ref={(element) => {
+                        if (element) rowRefs.current.set(line.id, element);
+                        else rowRefs.current.delete(line.id);
+                      }}
+                      aria-label="Edit lyric text"
+                      aria-pressed={isSelected}
+                      title={line.text}
+                      onClick={() => openEditor(line.id, line.text)}
+                    >
+                      <span className="lyric-text-display">{line.text}</span>
+                    </button>
+                  )}
+
+                  <div className="lyric-row-delete-slot">
+                    <button
+                      type="button"
+                      className="lyric-icon-button lyric-icon-button-delete"
+                      aria-label="Delete lyric line"
+                      title={deleteHint ?? 'Delete lyric line'}
+                      disabled={!canDeleteLine}
+                      onPointerDown={() => {
+                        if (isEditing) {
+                          suppressNextBlurSaveRef.current = true;
+                        }
+                      }}
+                      onClick={() => requestDeleteLine(line.id, line.text, segment != null)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </div>
+
+                <p
+                  id={`lyric-edit-error-${line.id}`}
+                  className="lyric-row-feedback"
+                  role={isEditing && editState.error ? 'alert' : undefined}
                 >
-                  <span className="lyric-drag-grip" aria-hidden="true" />
-                </button>
+                  {isEditing && editState.error ? editState.error : deleteHint ?? '\u00A0'}
+                </p>
+              </div>
+
+              {showDeleteConfirmation ? (
+                <div className="lyric-delete-confirmation" role="alertdialog" aria-modal="false">
+                  <p>
+                    Delete lyric line <strong>{confirmDeleteState.text}</strong>? Its saved timing
+                    will be removed too.
+                  </p>
+                  <div className="lyrics-inline-editor-actions">
+                    <button
+                      type="button"
+                      className="lyrics-inline-delete"
+                      onClick={() => {
+                        focusSelectedRowAfterRenderRef.current = true;
+                        onDeleteLine(confirmDeleteState.lineId);
+                        setConfirmDeleteState(null);
+                      }}
+                    >
+                      Delete line
+                    </button>
+                    <button
+                      type="button"
+                      className="lyrics-inline-cancel"
+                      onClick={() => {
+                        setConfirmDeleteState(null);
+                        focusSelectedRow();
+                      }}
+                    >
+                      Keep line
+                    </button>
+                  </div>
+                </div>
               ) : null}
             </li>
           );

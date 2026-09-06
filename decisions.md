@@ -141,3 +141,19 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** A dedicated setup step makes the entry flow easier to understand without changing the underlying document model or media lifecycle, and it keeps local validation and sample loading on the same trusted application paths already used inside the workspace.
 - **Rejected alternatives:** Auto-loading the seeded track on first render, pre-filling fake audio or lyrics, splitting setup into a separate route, and introducing a second source-normalization path just for the initial screen.
 - **Consequences:** Users now make an explicit sample-or-local choice before entering the editor, while the existing workspace and replacement-safety behavior remain unchanged after a track is active.
+
+### 2026-09-06 — Decision: Keep lyric text identity separate from timing removal and line deletion
+
+- **Context:** The editor now needs explicit lyric-line management without breaking stable IDs, one-pass capture, or timeline state cleanup.
+- **Choice:** Editing a lyric updates only its text while preserving line identity and any existing timing; removing timing clears only the selected line's segment so the lyric can be captured or placed again; deleting a line removes the lyric and any segment atomically, blocks deletion of the active capture line, and never allows the sheet to become empty.
+- **Rationale:** These semantics keep lyrical content, segment timing, and destructive removal distinct so the reducer remains the single source of truth for atomic editorial changes.
+- **Rejected alternatives:** Treating timing removal as lyric deletion, regenerating line IDs during text edits, allowing capture lines to be deleted mid-gesture, and permitting deletion of the last remaining line.
+- **Consequences:** Sidebar and inspector actions can stay explicit and predictable while timeline selection and capture references must be cleaned whenever a line or segment is removed.
+
+### 2026-09-06 — Decision: Use click-to-edit lyric rows with blur save and Escape cancel
+
+- **Context:** Lyric rows now need direct inline editing without changing row geometry, capture state, or timing semantics.
+- **Choice:** Keep the row text as the inline edit trigger, open editing in-place within a fixed-height textarea, save valid changes on Enter or blur, and cancel with Escape without committing.
+- **Rationale:** This keeps lyric text editing fast and local to the selected row while preserving stable row layout and avoiding accidental timing or capture mutations.
+- **Rejected alternatives:** Opening a separate edit panel, auto-growing editors that shift neighboring rows, and committing text changes on every keystroke.
+- **Consequences:** Rows reserve stable space for display, editing, and validation, and destructive actions must suppress blur-save when they intentionally interrupt editing.

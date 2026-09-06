@@ -503,6 +503,10 @@ kbd {
   @apply justify-between gap-3;
 }
 
+.lyrics-heading {
+  @apply items-start;
+}
+
 .section-heading h2,
 .capture-card h2,
 .inspector-panel h2 {
@@ -550,74 +554,186 @@ kbd {
   @apply m-0 mt-3 grid list-none gap-2 overflow-y-auto p-0 pr-1;
 }
 
-.lyric-row-shell {
-  @apply grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2;
+.lyrics-toolbar {
+  @apply flex flex-wrap items-center justify-end gap-2;
 }
 
-.lyric-row {
-  @apply grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-2 border-ink-700/80 bg-ink-900/72 p-3 text-left font-normal;
+.lyrics-add-button {
+  @apply min-h-8 px-3 py-1.5 text-xs;
 }
 
-.lyric-row:hover:not(:disabled) {
-  @apply border-ink-700 bg-ink-900 text-stone-100;
+.lyrics-inline-editor {
+  @apply mt-2.5 grid gap-2 rounded-xl border border-ink-700/70 bg-ink-900/62 px-3 py-2.5;
 }
 
-.lyric-row[data-selected] {
-  @apply border-amber-300/70 ring-1 ring-amber-300/30;
+.lyrics-inline-editor input {
+  @apply font-medium;
 }
 
-.lyric-row[data-playing] {
-  @apply border-l-4 border-l-amber-300;
+.lyrics-inline-editor-actions {
+  @apply flex flex-wrap items-center gap-2;
 }
 
-.lyric-row[data-capturing] {
-  @apply bg-amber-400/10;
+.lyrics-inline-submit {
+  @apply min-h-8 border-amber-400/60 bg-amber-400 px-3 py-1.5 text-xs font-semibold text-ink-950;
 }
 
-.lyric-index {
-  @apply pt-0.5 font-mono text-xs text-stone-500;
+.lyrics-inline-submit:hover:not(:disabled) {
+  @apply border-amber-300 bg-amber-300;
 }
 
-.lyric-copy {
-  @apply grid min-w-0 gap-1;
+.lyrics-inline-cancel {
+  @apply min-h-8 border-transparent bg-transparent px-2.5 py-1.5 text-xs text-stone-400 shadow-none;
 }
 
-.lyric-text {
-  @apply wrap-break-word font-medium leading-snug text-stone-100;
+.lyrics-inline-cancel:hover:not(:disabled),
+.lyrics-inline-cancel:focus-visible {
+  @apply border-ink-700/80 bg-ink-900/85 text-stone-200;
 }
 
-.lyric-time,
-.capture-start,
-.timing-summary dd {
-  @apply font-mono text-xs tabular-nums text-stone-400;
+.lyrics-inline-delete {
+  @apply min-h-8 border-rose-400/35 bg-rose-400/10 px-3 py-1.5 text-xs text-rose-100;
 }
 
-.line-labels {
-  @apply flex max-w-20 flex-col items-end gap-1 text-[0.62rem] uppercase tracking-wide text-stone-400;
+.lyrics-inline-delete:hover:not(:disabled),
+.lyrics-inline-delete:focus-visible {
+  @apply border-rose-300/55 bg-rose-400/16 text-rose-50;
 }
 
-.line-labels span,
-.line-state {
-  @apply rounded-md bg-ink-950 px-1.5 py-0.5;
+.lyric-row-stack {
+  @apply grid gap-2;
 }
 
-.line-labels span:not(.line-state) {
-  @apply text-amber-200;
+.lyric-row-card {
+  @apply grid min-w-0 gap-1 rounded-xl border border-ink-700/80 bg-ink-900/72 px-2.5 py-2 transition-colors;
+}
+
+.lyric-row-card:hover {
+  @apply border-ink-700 bg-ink-900/84;
+}
+
+.lyric-row-card[data-selected] {
+  @apply border-amber-300/65 bg-amber-400/6;
+}
+
+.lyric-row-card[data-playing] .lyric-time-chip {
+  @apply border-amber-300/45 text-amber-100;
+}
+
+.lyric-row-card:focus-within {
+  @apply border-amber-200/80 ring-1 ring-amber-200/30;
+}
+
+.lyric-row-main {
+  @apply grid min-w-0 grid-cols-[1.75rem_auto_minmax(0,1fr)_1.75rem] items-center gap-2;
+}
+
+.lyric-icon-button {
+  @apply flex h-7 w-7 items-center justify-center rounded-md border border-transparent bg-transparent p-0 text-rose-200/85 transition-colors;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.lyric-icon-button svg {
+  @apply h-4 w-4;
+}
+
+.lyric-icon-button:hover:not(:disabled),
+.lyric-icon-button:focus-visible {
+  @apply border-rose-300/45 bg-rose-400/12 text-rose-100;
 }
 
 .lyric-drag-handle {
-  @apply flex min-w-10 items-center justify-center rounded-xl border border-ink-700/80 bg-ink-900/80 px-2 text-stone-400 transition-colors touch-none;
+  @apply flex h-7 w-7 items-center justify-center rounded-md border border-transparent bg-transparent px-0 text-stone-500 transition-colors touch-none;
   cursor: grab;
 }
 
 .lyric-drag-handle:hover,
 .lyric-drag-handle:focus-visible {
-  @apply border-amber-300/40 text-amber-200;
+  @apply border-amber-300/35 bg-amber-400/10 text-amber-200;
 }
 
 .lyric-drag-handle[data-dragging] {
   cursor: grabbing;
-  @apply border-amber-300/55 bg-amber-400/10 text-amber-100;
+  @apply border-amber-300/55 bg-amber-400/12 text-amber-100;
+}
+
+.lyric-drag-spacer {
+  @apply block h-7 w-7;
+}
+
+.lyric-time-chip {
+  @apply inline-flex min-h-8 min-w-22 items-center gap-1.5 rounded-full border border-ink-700/80 bg-ink-950/92 px-3 py-1 text-left font-mono text-[0.72rem] tabular-nums text-stone-300 shadow-none;
+}
+
+.lyric-time-chip:hover:not(:disabled),
+.lyric-time-chip:focus-visible {
+  @apply border-amber-300/45 bg-ink-950 text-stone-100 shadow-none;
+}
+
+.lyric-time-chip svg {
+  @apply h-4 w-4 shrink-0 text-stone-500;
+}
+
+.lyric-time-chip-value {
+  @apply block min-w-0 flex-1 text-center;
+}
+
+.lyric-time-chip-value[data-empty] {
+  @apply text-stone-500;
+}
+
+.lyric-text-trigger,
+.lyric-edit-field input {
+  @apply block h-7 w-full min-w-0 overflow-x-auto rounded-md border border-transparent bg-transparent px-0 py-0 text-left text-sm font-medium leading-7 text-stone-100 shadow-none;
+}
+
+.lyric-edit-field {
+  @apply min-w-0;
+}
+
+.lyric-text-trigger:hover:not(:disabled),
+.lyric-text-trigger:focus-visible,
+.lyric-edit-field input:focus-visible {
+  @apply border-transparent bg-transparent text-stone-100 shadow-none outline-none;
+}
+
+.lyric-text-display {
+  @apply block overflow-hidden text-ellipsis whitespace-nowrap;
+}
+
+.lyric-edit-field input {
+  @apply rounded-md border border-transparent bg-transparent px-0;
+}
+
+.lyric-edit-field input[aria-invalid="true"] {
+  @apply border-rose-400/55;
+}
+
+.lyric-row-feedback {
+  @apply m-0 min-h-3 overflow-hidden text-ellipsis whitespace-nowrap pl-[6.05rem] text-[0.68rem] text-stone-400;
+}
+
+.lyric-row-delete-slot {
+  @apply flex h-7 w-7 items-center justify-center;
+}
+
+.lyric-row-card:hover .lyric-icon-button,
+.lyric-row-card:focus-within .lyric-icon-button,
+.lyric-row-card[data-selected] .lyric-icon-button,
+.lyric-row-card[data-editing] .lyric-icon-button {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .lyric-icon-button {
+    visibility: visible;
+    pointer-events: auto;
+    opacity: 1;
+  }
 }
 
 .lyric-drag-grip {
@@ -628,6 +744,15 @@ kbd {
   background-position: left top, right top;
   background-repeat: repeat-y;
   background-size: 50% 4px;
+}
+
+.lyric-delete-confirmation {
+  @apply ml-[1.95rem] grid gap-2 rounded-xl border border-ink-700/70 bg-ink-900/58 px-3 py-2.5;
+}
+
+.lyric-delete-confirmation p,
+.inspector-empty-note {
+  @apply m-0 text-xs text-stone-400;
 }
 
 input[type="range"] {
@@ -894,6 +1019,10 @@ input[type="range"]::-webkit-slider-thumb {
   @apply grid gap-4;
 }
 
+.inspector-secondary-action {
+  @apply min-h-10 px-4 py-2 text-sm;
+}
+
 .timing-fields {
   @apply grid grid-cols-2 gap-3;
 }
@@ -1024,12 +1153,20 @@ input[type="range"]::-webkit-slider-thumb {
     @apply grid-cols-1;
   }
 
-  .lyric-row {
-    @apply grid-cols-[1.75rem_minmax(0,1fr)];
+  .lyric-row-card {
+    @apply px-2 py-2;
   }
 
-  .line-labels {
-    @apply col-span-2 row-start-2 max-w-none flex-row items-center pl-8;
+  .lyric-row-main {
+    @apply grid-cols-[1.65rem_auto_minmax(0,1fr)_1.65rem] gap-1.5;
+  }
+
+  .lyric-time-chip {
+    @apply min-w-16 px-2;
+  }
+
+  .lyric-delete-confirmation {
+    @apply ml-0;
   }
 }
 

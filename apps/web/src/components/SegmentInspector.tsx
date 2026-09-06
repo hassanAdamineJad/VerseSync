@@ -6,6 +6,7 @@ type Props = {
   editor: EditorState;
   dragPreviewSegments: CompletedSegment[] | null;
   onApply: (lineId: string, startMs: number, endMs: number) => void;
+  onRemoveTiming: (lineId: string) => void;
 };
 
 type FieldErrors = {
@@ -49,7 +50,12 @@ function validateTimingInputs(
   return { ok: true, startMs, endMs };
 }
 
-export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props) {
+export function SegmentInspector({
+  editor,
+  dragPreviewSegments,
+  onApply,
+  onRemoveTiming,
+}: Props) {
   const selectedLine = editor.document.lines.find(
     (line) => line.id === editor.selectedLineId,
   );
@@ -186,6 +192,13 @@ export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props
               <button type="submit" className="inspector-apply" disabled={applyDisabled}>
                 Apply exact timing
               </button>
+              <button
+                type="button"
+                className="inspector-secondary-action"
+                onClick={() => onRemoveTiming(selectedLine.id)}
+              >
+                Remove timing
+              </button>
             </form>
           ) : (
             <div className="inspector-empty">
@@ -195,6 +208,11 @@ export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props
                   ? 'Finish this line before editing its exact start and end.'
                   : 'Capture this line before editing its exact start and end.'}
               </p>
+              {!isOpen ? (
+                <p className="inspector-empty-note">
+                  Edit text or delete this line from the selected actions in the lyric sheet.
+                </p>
+              ) : null}
             </div>
           )}
         </div>

@@ -305,9 +305,17 @@ export function TimelineOverview({
   const hasMultiSelection = selectedLineIds.length > 1;
 
   useEffect(() => {
-    if (!editor.selectedLineId || !editor.segments[editor.selectedLineId]) return;
-    if (selectedLineIdSet.has(editor.selectedLineId)) return;
-    setSelectedLineIds([editor.selectedLineId]);
+    setSelectedLineIds((current) => {
+      const next = current.filter((lineId) => editor.segments[lineId] != null);
+      if (editor.selectedLineId && editor.segments[editor.selectedLineId]) {
+        if (next.includes(editor.selectedLineId) && next.length === current.length) {
+          return current;
+        }
+        return next.includes(editor.selectedLineId) ? next : [editor.selectedLineId];
+      }
+      if (next.length === current.length) return current;
+      return next;
+    });
   }, [editor.selectedLineId, editor.segments, selectedLineIdSet]);
 
   const ticks = useMemo(
