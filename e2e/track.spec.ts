@@ -7,5 +7,7 @@ import { test, expect } from '@playwright/test';
  */
 test('the app loads and shows the track title', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'You Verse You' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Load a track to begin timing lyrics.' }),
+  ).toBeVisible();
 });

@@ -1,12 +1,12 @@
 import { useCallback, useReducer, useState } from 'react';
 import { CaptureWorkspace } from './components/CaptureWorkspace';
-import { ImportPanel } from './components/ImportPanel';
 import { LyricsPanel } from './components/LyricsPanel';
 import { SegmentInspector } from './components/SegmentInspector';
 import { TrackSetupScreen } from './components/TrackSetupScreen';
 import {
   createEditorState,
   editorReducer,
+  formatTime,
   getPlayingLineId,
   type CompletedSegment,
   type EditorAction,
@@ -29,6 +29,7 @@ function sessionReducer(state: EditorState | null, action: SessionAction): Edito
 export default function App() {
   const [editor, dispatch] = useReducer(sessionReducer, null);
   const [dragPreviewSegments, setDragPreviewSegments] = useState<CompletedSegment[] | null>(null);
+  const [isChangingTrack, setIsChangingTrack] = useState(false);
 
   const handleMediaEnded = useCallback((durationMs: number) => {
     dispatch({ type: 'mediaEnded', durationMs });
@@ -82,7 +83,10 @@ export default function App() {
     prepareSource,
     commitSource,
     cancelPreparedSource,
-    onReplaceDocument: (document) => dispatch({ type: 'replaceDocument', document }),
+    onReplaceDocument: (document) => {
+      dispatch({ type: 'replaceDocument', document });
+      setIsChangingTrack(false);
+    },
     onBeforeSourceSwap: resetWorkspacePreviews,
   });
 
@@ -97,17 +101,38 @@ export default function App() {
   const playingLineId = editor
     ? getPlayingLineId(editor, playback.currentTimeMs)
     : null;
+  const sourceLabel = editor?.document.source.kind === 'seeded' ? 'Seeded sample' : 'Local file';
+  const closeTrackSetup = useCallback(() => {
+    cancelReplacement();
+    setIsChangingTrack(false);
+  }, [cancelReplacement]);
+  const openTrackSetup = useCallback(() => {
+    resetWorkspacePreviews();
+    setIsChangingTrack(true);
+  }, [resetWorkspacePreviews]);
 
-  if (!editor) {
+  if (!editor || isChangingTrack) {
     return (
       <div className="setup-app-shell">
         <audio ref={audioRef} preload="metadata" className="sr-only" />
         <TrackSetupScreen
+          mode={editor ? 'replacement' : 'initial'}
           isLoading={sourceLoading}
           importError={importError}
           seededError={seededError}
+          pendingTitle={pendingCandidateTitle}
           onImport={(file, lyrics) => void importTrack(file, lyrics)}
           onTrySample={() => void loadSeeded()}
+          onConfirmReplacement={
+            editor
+              ? () => {
+                  confirmReplacement();
+                  setIsChangingTrack(false);
+                }
+              : undefined
+          }
+          onCancelReplacement={editor ? closeTrackSetup : undefined}
+          onCancel={editor ? closeTrackSetup : undefined}
         />
       </div>
     );
@@ -116,103 +141,122 @@ export default function App() {
   return (
     <div className="app-shell">
       <audio ref={audioRef} preload="metadata" className="sr-only" />
-      <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">V</span>
-          <div>
-            <p className="eyebrow">Lyric timing workspace</p>
-            <span className="brand-name">VerseSync</span>
+      <div className="workspace-shell">
+        <header className="app-header">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">V</span>
+            <div className="brand-copy">
+              <span className="brand-name">VerseSync</span>
+              <p className="eyebrow">Lyric timing workspace</p>
+            </div>
           </div>
-        </div>
-        <div className="header-source">
-          <div>
-            <span>{editor?.document.title ?? 'No active track'}</span>
-            <small>Edits live in this browser session only</small>
+          <div className="toolbar-track">
+            <span className="source-badge">{sourceLabel}</span>
+            <div>
+              <strong>{editor.document.title}</strong>
+              <small>Edits live in this browser session only</small>
+            </div>
           </div>
-          <button type="button" onClick={() => void loadSeeded()} disabled={sourceLoading != null}>
-            {sourceLoading === 'seeded' ? 'Loading seeded…' : 'Load seeded track'}
-          </button>
-        </div>
-      </header>
+          <div className="toolbar-actions">
+            <div className="toolbar-transport">
+              <div className="toolbar-transport-row">
+                <button
+                  type="button"
+                  className="toolbar-playback-button"
+                  onClick={() => void togglePlayback()}
+                  disabled={!playback.isReady}
+                >
+                  {playback.isPlaying ? 'Pause' : 'Play'}
+                  <kbd>Space</kbd>
+                </button>
+                <div className="toolbar-time">
+                  <span>Playhead</span>
+                  <strong>
+                    {formatTime(playback.currentTimeMs)} / {formatTime(editor.document.durationMs)}
+                  </strong>
+                </div>
+                <button type="button" className="toolbar-change-button" onClick={openTrackSetup}>
+                  Change track
+                </button>
+              </div>
+              <label className="toolbar-seek">
+                <span className="sr-only">Seek through audio</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={editor.document.durationMs}
+                  step={1}
+                  value={Math.min(playback.currentTimeMs, editor.document.durationMs)}
+                  onChange={(event) => seek(Number(event.target.value))}
+                  disabled={!playback.isReady}
+                />
+              </label>
+              {playback.error ? (
+                <p className="toolbar-playback-error" role="alert">
+                  {playback.error}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </header>
 
-      {seededError && (
-        <div className="source-alert" role="alert">
-          <p>{seededError}</p>
-          <button type="button" onClick={() => void loadSeeded()}>
-            Retry seeded track
-          </button>
-        </div>
-      )}
+        {linePlacementPreview?.hasDragged ? (
+          <div
+            className="line-placement-ghost"
+            style={{
+              left: linePlacementPreview.clientX + 12,
+              top: linePlacementPreview.clientY + 12,
+            }}
+          >
+            <span className="line-placement-ghost-index">
+              {String(
+                (editor?.document.lines.find((line) => line.id === linePlacementPreview.lineId)?.index ?? 0) + 1,
+              ).padStart(2, '0')}
+            </span>
+            <span className="line-placement-ghost-text">{linePlacementPreview.text}</span>
+          </div>
+        ) : null}
 
-      {linePlacementPreview?.hasDragged ? (
-        <div
-          className="line-placement-ghost"
-          style={{
-            left: linePlacementPreview.clientX + 12,
-            top: linePlacementPreview.clientY + 12,
-          }}
-        >
-          <span className="line-placement-ghost-index">
-            {String(
-              (editor?.document.lines.find((line) => line.id === linePlacementPreview.lineId)?.index ?? 0) + 1,
-            ).padStart(2, '0')}
-          </span>
-          <span className="line-placement-ghost-text">{linePlacementPreview.text}</span>
-        </div>
-      ) : null}
-
-      <ImportPanel
-        isLoading={sourceLoading === 'local'}
-        error={importError}
-        pendingTitle={pendingCandidateTitle}
-        onImport={(file, lyrics) => void importTrack(file, lyrics)}
-        onConfirmReplacement={confirmReplacement}
-        onCancelReplacement={cancelReplacement}
-      />
-
-      <div className="editor-grid">
-        <LyricsPanel
-          editor={editor}
-          playingLineId={playingLineId}
-          activePlacementLineId={linePlacementPreview?.lineId ?? null}
-          onSelect={(lineId) => dispatch({ type: 'select', lineId })}
-          onStartPlacementDrag={beginPlacementDrag}
-          onPlacementDragLostPointerCapture={(pointerId) => {
-            if (linePlacementPreview?.pointerId === pointerId) {
-              cancelPlacementDrag();
+        <div className="editor-grid">
+          <LyricsPanel
+            editor={editor}
+            playingLineId={playingLineId}
+            activePlacementLineId={linePlacementPreview?.lineId ?? null}
+            onSelect={(lineId) => dispatch({ type: 'select', lineId })}
+            onStartPlacementDrag={beginPlacementDrag}
+            onPlacementDragLostPointerCapture={(pointerId) => {
+              if (linePlacementPreview?.pointerId === pointerId) {
+                cancelPlacementDrag();
+              }
+            }}
+          />
+          <CaptureWorkspace
+            editor={editor}
+            dragPreviewSegments={dragPreviewSegments}
+            linePlacementPreview={linePlacementPreview}
+            currentTimeMs={playback.currentTimeMs}
+            onSelectSegment={(lineId: string) => dispatch({ type: 'inspect', lineId })}
+            onPreviewSegmentDrag={(segments: CompletedSegment[]) =>
+              setDragPreviewSegments(segments)
             }
-          }}
-        />
-        <CaptureWorkspace
-          editor={editor}
-          dragPreviewSegments={dragPreviewSegments}
-          linePlacementPreview={linePlacementPreview}
-          currentTimeMs={playback.currentTimeMs}
-          isPlaying={playback.isPlaying}
-          isReady={playback.isReady}
-          playbackError={playback.error}
-          onSelectSegment={(lineId: string) => dispatch({ type: 'inspect', lineId })}
-          onPreviewSegmentDrag={(segments: CompletedSegment[]) =>
-            setDragPreviewSegments(segments)
-          }
-          onCommitSegmentDrag={(segments: CompletedSegment[]) => {
-            setDragPreviewSegments(null);
-            dispatch({ type: 'editSegments', segments });
-          }}
-          onCancelSegmentDrag={() => setDragPreviewSegments(null)}
-          onTimelineLaneMetricsChange={handleTimelineLaneMetricsChange}
-          onTogglePlayback={() => void togglePlayback()}
-          onSeek={seek}
-          onStamp={stamp}
-          onFinish={finish}
-        />
-        <SegmentInspector
-          editor={editor}
-          dragPreviewSegments={dragPreviewSegments}
-          onApply={(lineId, startMs, endMs) =>
-            dispatch({ type: 'editSegment', lineId, startMs, endMs })
-          }
-        />
+            onCommitSegmentDrag={(segments: CompletedSegment[]) => {
+              setDragPreviewSegments(null);
+              dispatch({ type: 'editSegments', segments });
+            }}
+            onCancelSegmentDrag={() => setDragPreviewSegments(null)}
+            onTimelineLaneMetricsChange={handleTimelineLaneMetricsChange}
+            onTogglePlayback={() => void togglePlayback()}
+            onStamp={stamp}
+            onFinish={finish}
+          />
+          <SegmentInspector
+            editor={editor}
+            dragPreviewSegments={dragPreviewSegments}
+            onApply={(lineId, startMs, endMs) =>
+              dispatch({ type: 'editSegment', lineId, startMs, endMs })
+            }
+          />
+        </div>
       </div>
     </div>
   );

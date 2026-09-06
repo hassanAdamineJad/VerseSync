@@ -1,11 +1,53 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { formatTime, type CompletedSegment, type EditorState } from '../editor';
+import { formatTimecode, parseTimecode } from '../timecode';
 
 type Props = {
   editor: EditorState;
   dragPreviewSegments: CompletedSegment[] | null;
   onApply: (lineId: string, startMs: number, endMs: number) => void;
 };
+
+type FieldErrors = {
+  start: string | null;
+  end: string | null;
+};
+
+type TimingValidationResult =
+  | { ok: true; startMs: number; endMs: number }
+  | { ok: false; errors: FieldErrors };
+
+function validateTimingInputs(
+  startInput: string,
+  endInput: string,
+  durationMs: number,
+): TimingValidationResult {
+  const startParsed = parseTimecode(startInput);
+  const endParsed = parseTimecode(endInput);
+  const errors: FieldErrors = { start: null, end: null };
+
+  if (!startParsed.ok) errors.start = `Start: ${startParsed.error}`;
+  if (!endParsed.ok) errors.end = `End: ${endParsed.error}`;
+  if (!startParsed.ok || !endParsed.ok) return { ok: false, errors };
+
+  const startMs = startParsed.milliseconds;
+  const endMs = endParsed.milliseconds;
+  const maxLabel = formatTimecode(durationMs);
+
+  if (startMs > durationMs) {
+    errors.start = `Start must be no later than ${maxLabel}.`;
+  }
+  if (endMs > durationMs) {
+    errors.end = `End must be no later than ${maxLabel}.`;
+  }
+  if (endMs <= startMs) {
+    errors.end = 'End must be later than start.';
+  }
+
+  if (errors.start || errors.end) return { ok: false, errors };
+
+  return { ok: true, startMs, endMs };
+}
 
 export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props) {
   const selectedLine = editor.document.lines.find(
@@ -18,41 +60,58 @@ export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props
   const isOpen = selectedLine?.id === editor.openSegment?.lineId;
   const [startDraft, setStartDraft] = useState('');
   const [endDraft, setEndDraft] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({ start: null, end: null });
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
+  const startErrorId = 'segment-inspector-start-error';
+  const endErrorId = 'segment-inspector-end-error';
 
   useEffect(() => {
-    setStartDraft(segment ? String(segment.startMs) : '');
-    setEndDraft(segment ? String(segment.endMs) : '');
-    setError(null);
+    setStartDraft(segment ? formatTimecode(segment.startMs) : '');
+    setEndDraft(segment ? formatTimecode(segment.endMs) : '');
+    setErrors({ start: null, end: null });
   }, [segment?.endMs, segment?.lineId, segment?.startMs]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedLine || !segment) return;
 
-    const startMs = Number(startDraft);
-    const endMs = Number(endDraft);
-    if (!Number.isInteger(startMs) || startMs < 0) {
-      setError('Start must be a whole, non-negative millisecond value.');
-      startRef.current?.focus();
-      return;
-    }
-    if (!Number.isInteger(endMs) || endMs > editor.document.durationMs) {
-      setError(`End must be a whole millisecond value no later than ${editor.document.durationMs}.`);
-      endRef.current?.focus();
-      return;
-    }
-    if (endMs <= startMs) {
-      setError('End must be later than start.');
-      endRef.current?.focus();
+    const validation = validateTimingInputs(
+      startDraft,
+      endDraft,
+      editor.document.durationMs,
+    );
+    if (!validation.ok) {
+      setErrors(validation.errors);
+      if (validation.errors.start) {
+        startRef.current?.focus();
+      } else if (validation.errors.end) {
+        endRef.current?.focus();
+      }
       return;
     }
 
-    setError(null);
-    onApply(selectedLine.id, startMs, endMs);
+    setErrors({ start: null, end: null });
+    setStartDraft(formatTimecode(validation.startMs));
+    setEndDraft(formatTimecode(validation.endMs));
+    onApply(selectedLine.id, validation.startMs, validation.endMs);
   };
+
+  const handleStartChange = (value: string) => {
+    setStartDraft(value);
+    if (errors.start) {
+      setErrors((current) => ({ ...current, start: null }));
+    }
+  };
+
+  const handleEndChange = (value: string) => {
+    setEndDraft(value);
+    if (errors.end) {
+      setErrors((current) => ({ ...current, end: null }));
+    }
+  };
+
+  const applyDisabled = !selectedLine || !segment || !startDraft.trim() || !endDraft.trim();
 
   return (
     <aside className="inspector-panel" aria-labelledby="inspector-title">
@@ -74,52 +133,57 @@ export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props
             <form onSubmit={handleSubmit}>
               <div className="timing-fields">
                 <label>
-                  Start (ms)
+                  Start
                   <input
                     ref={startRef}
-                    type="number"
-                    min={0}
-                    max={editor.document.durationMs}
-                    step={1}
-                    inputMode="numeric"
+                    type="text"
+                    inputMode="text"
                     value={startDraft}
-                    onChange={(event) => setStartDraft(event.target.value)}
+                    onChange={(event) => handleStartChange(event.target.value)}
+                    aria-invalid={errors.start ? 'true' : 'false'}
+                    aria-describedby={errors.start ? startErrorId : undefined}
+                    placeholder="00:13.252"
                   />
+                  {errors.start ? (
+                    <span id={startErrorId} className="field-error" role="alert">
+                      {errors.start}
+                    </span>
+                  ) : null}
                 </label>
                 <label>
-                  End (ms)
+                  End
                   <input
                     ref={endRef}
-                    type="number"
-                    min={0}
-                    max={editor.document.durationMs}
-                    step={1}
-                    inputMode="numeric"
+                    type="text"
+                    inputMode="text"
                     value={endDraft}
-                    onChange={(event) => setEndDraft(event.target.value)}
+                    onChange={(event) => handleEndChange(event.target.value)}
+                    aria-invalid={errors.end ? 'true' : 'false'}
+                    aria-describedby={errors.end ? endErrorId : undefined}
+                    placeholder="00:16.504"
                   />
+                  {errors.end ? (
+                    <span id={endErrorId} className="field-error" role="alert">
+                      {errors.end}
+                    </span>
+                  ) : null}
                 </label>
               </div>
               <dl className="timing-summary">
                 <div>
                   <dt>Start</dt>
-                  <dd>{formatTime(segment.startMs)}</dd>
+                  <dd>{formatTimecode(segment.startMs)}</dd>
                 </div>
                 <div>
                   <dt>End</dt>
-                  <dd>{formatTime(segment.endMs)}</dd>
+                  <dd>{formatTimecode(segment.endMs)}</dd>
                 </div>
                 <div>
                   <dt>Duration</dt>
                   <dd>{formatTime(segment.endMs - segment.startMs)}</dd>
                 </div>
               </dl>
-              {error && (
-                <p className="form-error" role="alert">
-                  {error}
-                </p>
-              )}
-              <button type="submit" className="inspector-apply">
+              <button type="submit" className="inspector-apply" disabled={applyDisabled}>
                 Apply exact timing
               </button>
             </form>

@@ -21,11 +21,16 @@ const WAVE_CENTER_Y = 220;
 const WAVE_HEIGHT = 440;
 
 type Props = {
+  mode?: 'initial' | 'replacement';
   isLoading: 'seeded' | 'local' | null;
   importError: string | null;
   seededError: string | null;
+  pendingTitle?: string | null;
   onImport: (file: File, lyrics: string) => void;
   onTrySample: () => void;
+  onConfirmReplacement?: () => void;
+  onCancelReplacement?: () => void;
+  onCancel?: () => void;
 };
 
 function formatFileSize(bytes: number): string {
@@ -35,11 +40,16 @@ function formatFileSize(bytes: number): string {
 }
 
 export function TrackSetupScreen({
+  mode = 'initial',
   isLoading,
   importError,
   seededError,
+  pendingTitle = null,
   onImport,
   onTrySample,
+  onConfirmReplacement,
+  onCancelReplacement,
+  onCancel,
 }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [lyrics, setLyrics] = useState('');
@@ -52,6 +62,14 @@ export function TrackSetupScreen({
     if (!file || !parsedLyrics.ok) return;
     onImport(file, lyrics);
   };
+
+  const isReplacementMode = mode === 'replacement';
+  const title = isReplacementMode
+    ? 'Choose a different track for this session.'
+    : 'Load a track to begin timing lyrics.';
+  const copy = isReplacementMode
+    ? 'Validate a new local audio file and lyric sheet, or switch back to the sample track. Your current session stays untouched until a replacement is confirmed.'
+    : 'Import a local audio file and paste lyric lines, or jump into the existing sample track. Edits stay in this browser session.';
 
   return (
     <main className="setup-shell">
@@ -116,14 +134,11 @@ export function TrackSetupScreen({
           </span>
           <div>
             <p className="setup-kicker">VerseSync</p>
-            <h1 id="setup-title">Load a track to begin timing lyrics.</h1>
+            <h1 id="setup-title">{title}</h1>
           </div>
         </div>
 
-        <p className="setup-copy">
-          Import a local audio file and paste lyric lines, or jump into the existing sample
-          track. Edits stay in this browser session.
-        </p>
+        <p className="setup-copy">{copy}</p>
 
         <form className="setup-grid" onSubmit={handleSubmit}>
           <section className="setup-panel" aria-labelledby="setup-audio-title">
@@ -211,15 +226,44 @@ export function TrackSetupScreen({
                 {importError}
               </p>
             ) : null}
+            {pendingTitle && onConfirmReplacement && onCancelReplacement ? (
+              <div className="replace-confirmation" role="alert">
+                <p>
+                  <strong>{pendingTitle}</strong> is ready. Replacing this track will discard the
+                  current session.
+                </p>
+                <div className="button-row">
+                  <button type="button" onClick={onConfirmReplacement}>
+                    Replace session
+                  </button>
+                  <button type="button" onClick={onCancelReplacement}>
+                    Keep current track
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="setup-actions">
+              {isReplacementMode && onCancel ? (
+                <button
+                  type="button"
+                  className="setup-cancel-button"
+                  onClick={onCancel}
+                >
+                  Cancel
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="setup-secondary-button"
                 onClick={onTrySample}
                 disabled={isLoading != null}
               >
-                {isLoading === 'seeded' ? 'Loading sample…' : 'Try sample track'}
+                {isLoading === 'seeded'
+                  ? 'Loading sample…'
+                  : isReplacementMode
+                    ? 'Use sample track'
+                    : 'Try sample track'}
               </button>
               <button
                 type="submit"

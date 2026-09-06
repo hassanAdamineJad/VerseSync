@@ -387,6 +387,7 @@ export function TimelineOverview({
   const currentWindowLabel =
     windowPreset === 'full' ? 'Full track' : `${windowPreset} seconds`;
   const navigationMaxMs = Math.max(0, durationMs - Math.min(requestedWindowMs, durationMs));
+  const visibleRangeLabel = `${formatTime(visibleStartMs)}-${formatTime(visibleEndMs)}`;
 
   useEffect(() => {
     const lane = laneRef.current;
@@ -618,9 +619,7 @@ export function TimelineOverview({
         <div>
           <p className="eyebrow">Timeline</p>
           <h2 id="timeline-title">Read-only alignment overview</h2>
-          <p className="timeline-window-copy">
-            Showing {formatTime(visibleStartMs)} to {formatTime(visibleEndMs)}
-          </p>
+          <p className="timeline-window-copy">Inspect timing without moving playback.</p>
         </div>
         <div className="timeline-header-actions">
           {hasMultiSelection ? (
@@ -1030,7 +1029,8 @@ export function TimelineOverview({
 
       <div className="timeline-navigation">
         <label className="timeline-navigation-label">
-          <span>Viewport position</span>
+          <span>Timeline view</span>
+          <small>{visibleRangeLabel}</small>
           <input
             type="range"
             min={0}

@@ -26,16 +26,12 @@ type Props = {
   dragPreviewSegments: CompletedSegment[] | null;
   linePlacementPreview: LinePlacementPreview;
   currentTimeMs: number;
-  isPlaying: boolean;
-  isReady: boolean;
-  playbackError: string | null;
   onSelectSegment: (lineId: string) => void;
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
   onTimelineLaneMetricsChange: (metrics: TimelineLaneMetrics) => void;
   onTogglePlayback: () => void;
-  onSeek: (milliseconds: number) => void;
   onStamp: () => void;
   onFinish: () => void;
 };
@@ -52,16 +48,12 @@ export function CaptureWorkspace({
   dragPreviewSegments,
   linePlacementPreview,
   currentTimeMs,
-  isPlaying,
-  isReady,
-  playbackError,
   onSelectSegment,
   onPreviewSegmentDrag,
   onCommitSegmentDrag,
   onCancelSegmentDrag,
   onTimelineLaneMetricsChange,
   onTogglePlayback,
-  onSeek,
   onStamp,
   onFinish,
 }: Props) {
@@ -115,46 +107,7 @@ export function CaptureWorkspace({
   }
 
   return (
-    <main className="capture-workspace">
-      <section className="transport-card" aria-labelledby="transport-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Playback</p>
-            <h2 id="transport-title">{editor.document.title}</h2>
-          </div>
-          <span className="source-badge">
-            {editor.document.source.kind === 'seeded' ? 'Seeded track' : 'Local file'}
-          </span>
-        </div>
-
-        <div className="transport-controls">
-          <button type="button" onClick={onTogglePlayback} disabled={!isReady}>
-            {isPlaying ? 'Pause' : 'Play'}
-            <kbd>Space</kbd>
-          </button>
-          <span className="transport-time">
-            {formatTime(currentTimeMs)} / {formatTime(editor.document.durationMs)}
-          </span>
-        </div>
-        <label className="seek-control">
-          <span className="sr-only">Seek through audio</span>
-          <input
-            type="range"
-            min={0}
-            max={editor.document.durationMs}
-            step={1}
-            value={Math.min(currentTimeMs, editor.document.durationMs)}
-            onChange={(event) => onSeek(Number(event.target.value))}
-            disabled={!isReady}
-          />
-        </label>
-        {playbackError && (
-          <p className="form-error" role="alert">
-            {playbackError}
-          </p>
-        )}
-      </section>
-
+    <section className="capture-workspace">
       <TimelineOverview
         editor={editor}
         dragPreviewSegments={dragPreviewSegments}
@@ -211,6 +164,6 @@ export function CaptureWorkspace({
           </p>
         )}
       </section>
-    </main>
+    </section>
   );
 }
