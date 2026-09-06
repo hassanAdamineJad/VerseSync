@@ -220,6 +220,10 @@ kbd {
   @apply m-0 mt-4 grid list-none gap-2 overflow-y-auto p-0 pr-1;
 }
 
+.lyric-row-shell {
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2;
+}
+
 .lyric-row {
   @apply grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-2 border-navy-700 bg-navy-850 p-3 text-left font-normal;
 }
@@ -270,6 +274,31 @@ kbd {
 
 .line-labels span:not(.line-state) {
   @apply text-cyan-300;
+}
+
+.lyric-drag-handle {
+  @apply flex min-w-10 items-center justify-center rounded-lg border border-navy-700 bg-navy-950/80 px-2 text-slate-400 transition-colors touch-none;
+  cursor: grab;
+}
+
+.lyric-drag-handle:hover,
+.lyric-drag-handle:focus-visible {
+  @apply border-cyan-300/45 text-cyan-200;
+}
+
+.lyric-drag-handle[data-dragging] {
+  cursor: grabbing;
+  @apply border-cyan-300/55 bg-cyan-400/10 text-cyan-100;
+}
+
+.lyric-drag-grip {
+  @apply block h-5 w-3 rounded-sm opacity-80;
+  background-image:
+    radial-gradient(circle, currentColor 1px, transparent 1.4px),
+    radial-gradient(circle, currentColor 1px, transparent 1.4px);
+  background-position: left top, right top;
+  background-repeat: repeat-y;
+  background-size: 50% 4px;
 }
 
 .capture-workspace {
@@ -460,7 +489,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .line-placement-ghost {
-  @apply pointer-events-none fixed z-50 max-w-56 truncate rounded-md border border-cyan-300/40 bg-navy-900/95 px-2 py-1 text-xs text-cyan-100 shadow-[0_8px_20px_rgba(0,0,0,0.22)];
+  @apply pointer-events-none fixed z-50 grid max-w-64 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-lg border border-cyan-300/45 bg-navy-900/95 px-2.5 py-2 text-xs text-cyan-100 shadow-[0_10px_28px_rgba(0,0,0,0.28)];
+}
+
+.line-placement-ghost-index {
+  @apply rounded-md bg-cyan-400/14 px-1.5 py-1 font-mono tabular-nums text-cyan-200;
+}
+
+.line-placement-ghost-text {
+  @apply min-w-0 truncate font-medium text-slate-100;
 }
 
 .timeline-navigation {

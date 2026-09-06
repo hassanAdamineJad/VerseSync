@@ -4,47 +4,29 @@ import { formatTime, type EditorState } from '../editor';
 type Props = {
   editor: EditorState;
   playingLineId: string | null;
+  activePlacementLineId: string | null;
   onSelect: (lineId: string) => void;
-  onPlacementDragMove: (
+  onStartPlacementDrag: (
     lineId: string,
+    lineIndex: number,
     text: string,
+    pointerId: number,
     clientX: number,
     clientY: number,
-    snappingDisabled: boolean,
   ) => void;
-  onPlacementDragEnd: (
-    lineId: string,
-    text: string,
-    clientX: number,
-    clientY: number,
-    snappingDisabled: boolean,
-  ) => void;
-  onPlacementDragCancel: () => void;
+  onPlacementDragLostPointerCapture: (pointerId: number) => void;
 };
-
-type PlacementDragState = {
-  pointerId: number;
-  lineId: string;
-  text: string;
-  startClientX: number;
-  startClientY: number;
-  hasDragged: boolean;
-};
-
-const PLACEMENT_DRAG_THRESHOLD_PX = 4;
 
 export function LyricsPanel({
   editor,
   playingLineId,
+  activePlacementLineId,
   onSelect,
-  onPlacementDragMove,
-  onPlacementDragEnd,
-  onPlacementDragCancel,
+  onStartPlacementDrag,
+  onPlacementDragLostPointerCapture,
 }: Props) {
   const listRef = useRef<HTMLOListElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
-  const placementDragRef = useRef<PlacementDragState | null>(null);
-  const suppressClickLineIdRef = useRef<string | null>(null);
   const completedCount = Object.keys(editor.segments).length;
   const activeCaptureLineId = editor.openSegment?.lineId ?? null;
 
@@ -91,9 +73,10 @@ export function LyricsPanel({
           const isSelected = editor.selectedLineId === line.id;
           const isPlaying = playingLineId === line.id;
           const stateLabel = isOpen ? 'Capturing' : segment ? 'Completed' : 'Untimed';
+          const canPlaceOnTimeline = !segment && !isOpen;
 
           return (
-            <li key={line.id}>
+            <li key={line.id} className="lyric-row-shell">
               <button
                 type="button"
                 className="lyric-row"
@@ -105,89 +88,7 @@ export function LyricsPanel({
                 data-playing={isPlaying || undefined}
                 data-capturing={isOpen || undefined}
                 aria-pressed={isSelected}
-                onClick={() => {
-                  if (suppressClickLineIdRef.current === line.id) {
-                    suppressClickLineIdRef.current = null;
-                    return;
-                  }
-                  onSelect(line.id);
-                }}
-                onPointerDown={(event) => {
-                  if (event.button !== 0 || segment || isOpen) return;
-                  placementDragRef.current = {
-                    pointerId: event.pointerId,
-                    lineId: line.id,
-                    text: line.text,
-                    startClientX: event.clientX,
-                    startClientY: event.clientY,
-                    hasDragged: false,
-                  };
-                  event.currentTarget.setPointerCapture(event.pointerId);
-                }}
-                onPointerMove={(event) => {
-                  const dragState = placementDragRef.current;
-                  if (
-                    !dragState ||
-                    dragState.pointerId !== event.pointerId ||
-                    dragState.lineId !== line.id
-                  ) {
-                    return;
-                  }
-
-                  const deltaX = event.clientX - dragState.startClientX;
-                  const deltaY = event.clientY - dragState.startClientY;
-                  if (!dragState.hasDragged) {
-                    if (Math.hypot(deltaX, deltaY) < PLACEMENT_DRAG_THRESHOLD_PX) return;
-                    dragState.hasDragged = true;
-                  }
-
-                  onPlacementDragMove(
-                    dragState.lineId,
-                    dragState.text,
-                    event.clientX,
-                    event.clientY,
-                    event.altKey,
-                  );
-                }}
-                onPointerUp={(event) => {
-                  const dragState = placementDragRef.current;
-                  if (
-                    !dragState ||
-                    dragState.pointerId !== event.pointerId ||
-                    dragState.lineId !== line.id
-                  ) {
-                    return;
-                  }
-
-                  placementDragRef.current = null;
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                  if (!dragState.hasDragged) return;
-                  suppressClickLineIdRef.current = line.id;
-                  onPlacementDragEnd(
-                    dragState.lineId,
-                    dragState.text,
-                    event.clientX,
-                    event.clientY,
-                    event.altKey,
-                  );
-                }}
-                onPointerCancel={(event) => {
-                  const dragState = placementDragRef.current;
-                  if (
-                    !dragState ||
-                    dragState.pointerId !== event.pointerId ||
-                    dragState.lineId !== line.id
-                  ) {
-                    return;
-                  }
-
-                  placementDragRef.current = null;
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                  if (dragState.hasDragged) {
-                    suppressClickLineIdRef.current = line.id;
-                    onPlacementDragCancel();
-                  }
-                }}
+                onClick={() => onSelect(line.id)}
               >
                 <span className="lyric-index">{String(line.index + 1).padStart(2, '0')}</span>
                 <span className="lyric-copy">
@@ -206,6 +107,36 @@ export function LyricsPanel({
                   {isPlaying && <span>Playing</span>}
                 </span>
               </button>
+              {canPlaceOnTimeline ? (
+                <button
+                  type="button"
+                  className="lyric-drag-handle"
+                  data-dragging={activePlacementLineId === line.id || undefined}
+                  title="Drag onto timeline to place"
+                  aria-label={`Drag ${line.text} onto timeline to place`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    onStartPlacementDrag(
+                      line.id,
+                      line.index,
+                      line.text,
+                      event.pointerId,
+                      event.clientX,
+                      event.clientY,
+                    );
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }}
+                  onLostPointerCapture={(event) => {
+                    onPlacementDragLostPointerCapture(event.pointerId);
+                  }}
+                >
+                  <span className="lyric-drag-grip" aria-hidden="true" />
+                </button>
+              ) : null}
             </li>
           );
         })}

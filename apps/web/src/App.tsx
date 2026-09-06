@@ -31,10 +31,15 @@ type PendingCandidate = {
 
 type DragPreview = CompletedSegment[] | null;
 type LinePlacementPreview = {
+  pointerId: number;
   lineId: string;
+  lineIndex: number;
   text: string;
+  startClientX: number;
+  startClientY: number;
   clientX: number;
   clientY: number;
+  hasDragged: boolean;
   segment: CompletedSegment | null;
   snapTargetMs: number | null;
 } | null;
@@ -76,11 +81,23 @@ export default function App() {
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null);
   const [dragPreviewSegments, setDragPreviewSegments] = useState<DragPreview>(null);
   const [linePlacementPreview, setLinePlacementPreview] = useState<LinePlacementPreview>(null);
+  const linePlacementPreviewRef = useRef<LinePlacementPreview>(null);
   const timelineLaneMetricsRef = useRef<TimelineLaneMetrics>(null);
+  const placementListenersAttachedRef = useRef(false);
 
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
+
+  const updatePlacementPreviewState = useCallback((next: LinePlacementPreview) => {
+    linePlacementPreviewRef.current = next;
+    setLinePlacementPreview(next);
+  }, []);
+
+  const clearPlacementPreview = useCallback(() => {
+    linePlacementPreviewRef.current = null;
+    setLinePlacementPreview(null);
+  }, []);
 
   const handleMediaEnded = useCallback((durationMs: number) => {
     dispatch({ type: 'mediaEnded', durationMs });
@@ -103,9 +120,9 @@ export default function App() {
     cancelPreparedSource();
     setPendingCandidate(null);
     setDragPreviewSegments(null);
-    setLinePlacementPreview(null);
+    clearPlacementPreview();
     return attemptRef.current;
-  }, [cancelPreparedSource]);
+  }, [cancelPreparedSource, clearPlacementPreview]);
 
   const offerCandidate = useCallback(
     (document: EditorDocument, audio: PreparedAudioSource) => {
@@ -200,15 +217,15 @@ export default function App() {
     }
     setPendingCandidate(null);
     setDragPreviewSegments(null);
-    setLinePlacementPreview(null);
-  }, [commitSource, pendingCandidate]);
+    clearPlacementPreview();
+  }, [clearPlacementPreview, commitSource, pendingCandidate]);
 
   const cancelReplacement = useCallback(() => {
     cancelPreparedSource();
     setPendingCandidate(null);
     setDragPreviewSegments(null);
-    setLinePlacementPreview(null);
-  }, [cancelPreparedSource]);
+    clearPlacementPreview();
+  }, [cancelPreparedSource, clearPlacementPreview]);
 
   const buildPlacementSegment = useCallback(
     (
@@ -260,41 +277,155 @@ export default function App() {
     [editor, playback.currentTimeMs],
   );
 
-  const updateLinePlacementPreview = useCallback(
-    (
-      lineId: string,
-      text: string,
-      clientX: number,
-      clientY: number,
-      snappingDisabled: boolean,
-    ) => {
+  const updatePlacementDragPosition = useCallback(
+    (clientX: number, clientY: number, snappingDisabled: boolean) => {
+      const preview = linePlacementPreviewRef.current;
+      if (!preview) return;
+
+      const hasDragged =
+        preview.hasDragged ||
+        Math.hypot(clientX - preview.startClientX, clientY - preview.startClientY) >= 4;
+
+      if (!hasDragged) return;
+
       const { segment, snapTargetMs } = buildPlacementSegment(
-        lineId,
+        preview.lineId,
         clientX,
         clientY,
         snappingDisabled,
       );
-      setLinePlacementPreview({ lineId, text, clientX, clientY, segment, snapTargetMs });
+      updatePlacementPreviewState({
+        ...preview,
+        clientX,
+        clientY,
+        hasDragged: true,
+        segment,
+        snapTargetMs,
+      });
     },
-    [buildPlacementSegment],
+    [buildPlacementSegment, updatePlacementPreviewState],
   );
 
-  const commitLinePlacement = useCallback(
-    (lineId: string, _text: string, clientX: number, clientY: number, snappingDisabled: boolean) => {
-      const { segment } = buildPlacementSegment(lineId, clientX, clientY, snappingDisabled);
-      if (segment) {
-        setLinePlacementPreview(null);
-        dispatch({
-          type: 'placeSegment',
-          lineId: segment.lineId,
-          startMs: segment.startMs,
-          endMs: segment.endMs,
-        });
-        return;
-      }
-      setLinePlacementPreview(null);
+  const handlePlacementPointerMove = useCallback(
+    (event: PointerEvent) => {
+      if (event.pointerId !== linePlacementPreviewRef.current?.pointerId) return;
+      updatePlacementDragPosition(event.clientX, event.clientY, event.altKey);
     },
-    [buildPlacementSegment],
+    [updatePlacementDragPosition],
+  );
+
+  const detachPlacementListeners = useCallback(() => {
+    if (!placementListenersAttachedRef.current) return;
+    window.removeEventListener('pointermove', handlePlacementPointerMove);
+    window.removeEventListener('pointerup', handlePlacementPointerUp);
+    window.removeEventListener('pointercancel', handlePlacementPointerCancel);
+    window.removeEventListener('blur', handlePlacementWindowBlur);
+    window.removeEventListener('keydown', handlePlacementEscape);
+    placementListenersAttachedRef.current = false;
+  }, []);
+
+  const cancelPlacementDrag = useCallback(() => {
+    detachPlacementListeners();
+    clearPlacementPreview();
+  }, [clearPlacementPreview, detachPlacementListeners]);
+
+  const finishPlacementDrag = useCallback(() => {
+    const preview = linePlacementPreviewRef.current;
+    detachPlacementListeners();
+    if (!preview) {
+      clearPlacementPreview();
+      return;
+    }
+
+    const finalSegment = preview.hasDragged ? preview.segment : null;
+    clearPlacementPreview();
+    if (!finalSegment) return;
+
+    dispatch({
+      type: 'placeSegment',
+      lineId: finalSegment.lineId,
+      startMs: finalSegment.startMs,
+      endMs: finalSegment.endMs,
+    });
+  }, [clearPlacementPreview, detachPlacementListeners]);
+
+  const handlePlacementPointerUp = useCallback(
+    (event: PointerEvent) => {
+      if (event.pointerId !== linePlacementPreviewRef.current?.pointerId) return;
+      updatePlacementDragPosition(event.clientX, event.clientY, event.altKey);
+      finishPlacementDrag();
+    },
+    [finishPlacementDrag, updatePlacementDragPosition],
+  );
+
+  const handlePlacementPointerCancel = useCallback(
+    (event: PointerEvent) => {
+      if (event.pointerId !== linePlacementPreviewRef.current?.pointerId) return;
+      cancelPlacementDrag();
+    },
+    [cancelPlacementDrag],
+  );
+
+  const handlePlacementWindowBlur = useCallback(() => {
+    cancelPlacementDrag();
+  }, [cancelPlacementDrag]);
+
+  const handlePlacementEscape = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelPlacementDrag();
+    },
+    [cancelPlacementDrag],
+  );
+
+  const beginPlacementDrag = useCallback(
+    (
+      lineId: string,
+      lineIndex: number,
+      text: string,
+      pointerId: number,
+      clientX: number,
+      clientY: number,
+    ) => {
+      cancelPlacementDrag();
+      updatePlacementPreviewState({
+        pointerId,
+        lineId,
+        lineIndex,
+        text,
+        startClientX: clientX,
+        startClientY: clientY,
+        clientX,
+        clientY,
+        hasDragged: false,
+        segment: null,
+        snapTargetMs: null,
+      });
+      if (!placementListenersAttachedRef.current) {
+        window.addEventListener('pointermove', handlePlacementPointerMove);
+        window.addEventListener('pointerup', handlePlacementPointerUp);
+        window.addEventListener('pointercancel', handlePlacementPointerCancel);
+        window.addEventListener('blur', handlePlacementWindowBlur);
+        window.addEventListener('keydown', handlePlacementEscape);
+        placementListenersAttachedRef.current = true;
+      }
+    },
+    [
+      cancelPlacementDrag,
+      handlePlacementEscape,
+      handlePlacementPointerCancel,
+      handlePlacementPointerMove,
+      handlePlacementPointerUp,
+      handlePlacementWindowBlur,
+      updatePlacementPreviewState,
+    ],
+  );
+
+  useEffect(
+    () => () => {
+      detachPlacementListeners();
+      clearPlacementPreview();
+    },
+    [clearPlacementPreview, detachPlacementListeners],
   );
 
   const stamp = useCallback(() => {
@@ -341,7 +472,7 @@ export default function App() {
         </div>
       )}
 
-      {linePlacementPreview ? (
+      {linePlacementPreview?.hasDragged ? (
         <div
           className="line-placement-ghost"
           style={{
@@ -349,7 +480,12 @@ export default function App() {
             top: linePlacementPreview.clientY + 12,
           }}
         >
-          {linePlacementPreview.text}
+          <span className="line-placement-ghost-index">
+            {String(
+              (editor?.document.lines.find((line) => line.id === linePlacementPreview.lineId)?.index ?? 0) + 1,
+            ).padStart(2, '0')}
+          </span>
+          <span className="line-placement-ghost-text">{linePlacementPreview.text}</span>
         </div>
       ) : null}
 
@@ -367,10 +503,14 @@ export default function App() {
           <LyricsPanel
             editor={editor}
             playingLineId={playingLineId}
+            activePlacementLineId={linePlacementPreview?.lineId ?? null}
             onSelect={(lineId) => dispatch({ type: 'select', lineId })}
-            onPlacementDragMove={updateLinePlacementPreview}
-            onPlacementDragEnd={commitLinePlacement}
-            onPlacementDragCancel={() => setLinePlacementPreview(null)}
+            onStartPlacementDrag={beginPlacementDrag}
+            onPlacementDragLostPointerCapture={(pointerId) => {
+              if (linePlacementPreviewRef.current?.pointerId === pointerId) {
+                cancelPlacementDrag();
+              }
+            }}
           />
           <CaptureWorkspace
             editor={editor}
