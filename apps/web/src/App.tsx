@@ -28,7 +28,7 @@ type PendingCandidate = {
   audio: PreparedAudioSource;
 };
 
-type DragPreview = CompletedSegment | null;
+type DragPreview = CompletedSegment[] | null;
 
 function sessionReducer(state: EditorState | null, action: SessionAction): EditorState | null {
   if (action.type === 'replaceDocument') return createEditorState(action.document);
@@ -52,7 +52,7 @@ export default function App() {
   const [importError, setImportError] = useState<string | null>(null);
   const [sourceLoading, setSourceLoading] = useState<'seeded' | 'local' | null>('seeded');
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null);
-  const [dragPreview, setDragPreview] = useState<DragPreview>(null);
+  const [dragPreviewSegments, setDragPreviewSegments] = useState<DragPreview>(null);
 
   useEffect(() => {
     editorRef.current = editor;
@@ -78,7 +78,7 @@ export default function App() {
     fetchAbortRef.current?.abort();
     cancelPreparedSource();
     setPendingCandidate(null);
-    setDragPreview(null);
+    setDragPreviewSegments(null);
     return attemptRef.current;
   }, [cancelPreparedSource]);
 
@@ -174,13 +174,13 @@ export default function App() {
       dispatch({ type: 'replaceDocument', document: pendingCandidate.document });
     }
     setPendingCandidate(null);
-    setDragPreview(null);
+    setDragPreviewSegments(null);
   }, [commitSource, pendingCandidate]);
 
   const cancelReplacement = useCallback(() => {
     cancelPreparedSource();
     setPendingCandidate(null);
-    setDragPreview(null);
+    setDragPreviewSegments(null);
   }, [cancelPreparedSource]);
 
   const stamp = useCallback(() => {
@@ -245,20 +245,20 @@ export default function App() {
           />
           <CaptureWorkspace
             editor={editor}
-            dragPreview={dragPreview}
+            dragPreviewSegments={dragPreviewSegments}
             currentTimeMs={playback.currentTimeMs}
             isPlaying={playback.isPlaying}
             isReady={playback.isReady}
             playbackError={playback.error}
             onSelectSegment={(lineId: string) => dispatch({ type: 'inspect', lineId })}
-            onPreviewSegmentDrag={(lineId: string, startMs: number, endMs: number) =>
-              setDragPreview({ lineId, startMs, endMs })
+            onPreviewSegmentDrag={(segments: CompletedSegment[]) =>
+              setDragPreviewSegments(segments)
             }
-            onCommitSegmentDrag={(lineId: string, startMs: number, endMs: number) => {
-              setDragPreview(null);
-              dispatch({ type: 'editSegment', lineId, startMs, endMs });
+            onCommitSegmentDrag={(segments: CompletedSegment[]) => {
+              setDragPreviewSegments(null);
+              dispatch({ type: 'editSegments', segments });
             }}
-            onCancelSegmentDrag={() => setDragPreview(null)}
+            onCancelSegmentDrag={() => setDragPreviewSegments(null)}
             onTogglePlayback={() => void togglePlayback()}
             onSeek={seek}
             onStamp={stamp}
@@ -266,7 +266,7 @@ export default function App() {
           />
           <SegmentInspector
             editor={editor}
-            dragPreview={dragPreview}
+            dragPreviewSegments={dragPreviewSegments}
             onApply={(lineId, startMs, endMs) =>
               dispatch({ type: 'editSegment', lineId, startMs, endMs })
             }

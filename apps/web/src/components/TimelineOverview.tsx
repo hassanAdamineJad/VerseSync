@@ -3,11 +3,11 @@ import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 
 type Props = {
   editor: EditorState;
-  dragPreview: CompletedSegment | null;
+  dragPreviewSegments: CompletedSegment[] | null;
   currentTimeMs: number;
   onSelectSegment: (lineId: string) => void;
-  onPreviewSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
-  onCommitSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
+  onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
+  onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
 };
 
@@ -188,6 +188,7 @@ type DragState = {
   mode: 'move' | 'resize-left' | 'resize-right';
   pointerId: number;
   lineId: string;
+  selectedLineIds: string[];
   startClientX: number;
   windowDurationMs: number;
   originalStartMs: number;
@@ -199,7 +200,7 @@ const DRAG_START_THRESHOLD_PX = 3;
 
 export function TimelineOverview({
   editor,
-  dragPreview,
+  dragPreviewSegments,
   currentTimeMs,
   onSelectSegment,
   onPreviewSegmentDrag,
@@ -215,6 +216,7 @@ export function TimelineOverview({
   const [windowPreset, setWindowPreset] = useState<WindowPreset>(15);
   const [followPlayhead, setFollowPlayhead] = useState(true);
   const [manualWindowStartMs, setManualWindowStartMs] = useState(0);
+  const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
   const requestedWindowMs = windowPreset === 'full' ? durationMs : windowPreset * 1000;
   const centeredWindow = useMemo(
     () => getCenteredWindow(durationMs, currentTimeMs, requestedWindowMs),
@@ -250,6 +252,9 @@ export function TimelineOverview({
     setWindowPreset(15);
     setFollowPlayhead(true);
     setManualWindowStartMs(0);
+    const initiallySelectedLineId =
+      editor.selectedLineId && editor.segments[editor.selectedLineId] ? editor.selectedLineId : null;
+    setSelectedLineIds(initiallySelectedLineId ? [initiallySelectedLineId] : []);
   }, [audioUrl]);
 
   useEffect(() => {
@@ -274,6 +279,8 @@ export function TimelineOverview({
         .filter((entry): entry is NonNullable<typeof entry> => entry != null),
     [editor.document.lines, editor.segments],
   );
+  const selectedLineIdSet = useMemo(() => new Set(selectedLineIds), [selectedLineIds]);
+  const primarySelectedLineId = selectedLineIds.at(-1) ?? null;
 
   const ticks = useMemo(
     () => buildRulerTicks(visibleStartMs, visibleEndMs),
@@ -288,7 +295,7 @@ export function TimelineOverview({
       timedSegments
         .map(({ line, segment }) => {
           const previewSegment =
-            dragPreview?.lineId === line.id ? dragPreview : segment;
+            dragPreviewSegments?.find((preview) => preview.lineId === line.id) ?? segment;
           if (previewSegment.endMs <= visibleStartMs || previewSegment.startMs >= visibleEndMs) {
             return null;
           }
@@ -308,7 +315,8 @@ export function TimelineOverview({
             left,
             width,
             labelMode,
-            isSelected: line.id === editor.selectedLineId,
+            isSelected: selectedLineIdSet.has(line.id),
+            isPrimarySelected: primarySelectedLineId === line.id,
             isPlaying:
               segment.startMs <= currentTimeMs && currentTimeMs < segment.endMs,
           };
@@ -316,8 +324,9 @@ export function TimelineOverview({
         .filter((entry): entry is NonNullable<typeof entry> => entry != null),
     [
       currentTimeMs,
-      dragPreview,
-      editor.selectedLineId,
+      dragPreviewSegments,
+      primarySelectedLineId,
+      selectedLineIdSet,
       timedSegments,
       visibleEndMs,
       visibleStartMs,
@@ -361,10 +370,65 @@ export function TimelineOverview({
     return { startMs: dragState.originalStartMs, endMs };
   };
 
-  const updateDraggedSegment = (lineId: string, deltaClientX: number, dragState: DragState) => {
-    const nextSegment = getDraggedSegment(deltaClientX, dragState);
-    onPreviewSegmentDrag(lineId, nextSegment.startMs, nextSegment.endMs);
-    return nextSegment;
+  const updateDraggedSegments = (deltaClientX: number, dragState: DragState) => {
+    const selectedGroupLineIds =
+      dragState.mode === 'move' && dragState.selectedLineIds.includes(dragState.lineId)
+        ? dragState.selectedLineIds
+        : [dragState.lineId];
+
+    const baseSegments = selectedGroupLineIds
+      .map((lineId) => editor.segments[lineId])
+      .filter((segment): segment is CompletedSegment => segment != null);
+
+    if (dragState.mode !== 'move') {
+      const nextSegment = getDraggedSegment(deltaClientX, dragState);
+      const previewSegments = [{ lineId: dragState.lineId, ...nextSegment }];
+      onPreviewSegmentDrag(previewSegments);
+      return previewSegments;
+    }
+
+    const laneWidth = laneWidthPx || 1;
+    const rawDeltaMs = Math.round((deltaClientX / laneWidth) * dragState.windowDurationMs);
+    const earliestStartMs = Math.min(...baseSegments.map((segment) => segment.startMs));
+    const latestEndMs = Math.max(...baseSegments.map((segment) => segment.endMs));
+    const clampedDeltaMs = Math.min(
+      Math.max(rawDeltaMs, -earliestStartMs),
+      durationMs - latestEndMs,
+    );
+
+    const previewSegments = baseSegments.map((segment) => ({
+      lineId: segment.lineId,
+      startMs: segment.startMs + clampedDeltaMs,
+      endMs: segment.endMs + clampedDeltaMs,
+    }));
+
+    onPreviewSegmentDrag(previewSegments);
+    return previewSegments;
+  };
+
+  const selectOnlySegment = (lineId: string) => {
+    setSelectedLineIds([lineId]);
+    onSelectSegment(lineId);
+  };
+
+  const toggleSegmentSelection = (lineId: string) => {
+    setSelectedLineIds((current) => {
+      if (current.includes(lineId)) {
+        if (current.length === 1) {
+          onSelectSegment(lineId);
+          return current;
+        }
+
+        const next = current.filter((id) => id !== lineId);
+        const nextPrimary = next.at(-1);
+        if (nextPrimary) onSelectSegment(nextPrimary);
+        return next;
+      }
+
+      const next = [...current, lineId];
+      onSelectSegment(lineId);
+      return next;
+    });
   };
 
   return (
@@ -437,13 +501,17 @@ export function TimelineOverview({
 
         <div ref={laneRef} className="segment-lane" aria-label="Timed lyric segments">
           {visibleSegments.length > 0 ? (
-            visibleSegments.map(({ line, segment, left, width, labelMode, isSelected, isPlaying }) => {
+            visibleSegments.map(
+              ({ line, segment, left, width, labelMode, isSelected, isPrimarySelected, isPlaying }) => {
+                const canShowSingleSelectionManipulators = selectedLineIds.length <= 1 || isPrimarySelected;
+
               return (
                 <button
                   type="button"
                   key={line.id}
                   className="timeline-segment"
                   data-selected={isSelected || undefined}
+                  data-primary-selected={isPrimarySelected || undefined}
                   data-playing={isPlaying || undefined}
                   data-dragging={dragStateRef.current?.lineId === line.id || undefined}
                   style={{
@@ -452,14 +520,24 @@ export function TimelineOverview({
                   }}
                   title={`${line.text}\n${formatTime(segment.startMs)} - ${formatTime(segment.endMs)}`}
                   aria-label={`${line.text} from ${formatTime(segment.startMs)} to ${formatTime(segment.endMs)}`}
-                  onClick={() => onSelectSegment(line.id)}
+                  onClick={(event) => {
+                    if (event.shiftKey) {
+                      toggleSegmentSelection(line.id);
+                      return;
+                    }
+                    selectOnlySegment(line.id);
+                  }}
                   onPointerDown={(event) => {
+                    if (event.shiftKey) return;
                     if (event.button !== 0) return;
 
                     dragStateRef.current = {
                       mode: 'move',
                       pointerId: event.pointerId,
                       lineId: line.id,
+                      selectedLineIds: selectedLineIdSet.has(line.id)
+                        ? selectedLineIds
+                        : [line.id],
                       startClientX: event.clientX,
                       windowDurationMs: visibleWindowMs,
                       originalStartMs: segment.startMs,
@@ -484,12 +562,15 @@ export function TimelineOverview({
                       dragState.hasDragged = true;
                       setFollowPlayhead(false);
                       setManualWindowStartMs(visibleStartMs);
-                      onSelectSegment(line.id);
-                      onPreviewSegmentDrag(line.id, segment.startMs, segment.endMs);
+                      if (!dragState.selectedLineIds.includes(line.id)) {
+                        selectOnlySegment(line.id);
+                      }
+                      onPreviewSegmentDrag([
+                        { lineId: line.id, startMs: segment.startMs, endMs: segment.endMs },
+                      ]);
                     }
 
-                    updateDraggedSegment(
-                      line.id,
+                    updateDraggedSegments(
                       deltaClientX,
                       dragState,
                     );
@@ -510,14 +591,13 @@ export function TimelineOverview({
                       return;
                     }
 
-                    const nextSegment = updateDraggedSegment(
-                      line.id,
+                    const nextSegments = updateDraggedSegments(
                       event.clientX - dragState.startClientX,
                       dragState,
                     );
                     dragStateRef.current = null;
                     event.currentTarget.releasePointerCapture(event.pointerId);
-                    onCommitSegmentDrag(line.id, nextSegment.startMs, nextSegment.endMs);
+                    onCommitSegmentDrag(nextSegments);
                   }}
                   onPointerCancel={(event) => {
                     const dragState = dragStateRef.current;
@@ -534,86 +614,89 @@ export function TimelineOverview({
                     if (dragState.hasDragged) onCancelSegmentDrag();
                   }}
                 >
-                  <span
-                    className="timeline-segment-handle timeline-segment-handle-left"
-                    aria-hidden="true"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onPointerDown={(event) => {
-                      if (event.button !== 0) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      dragStateRef.current = {
-                        mode: 'resize-left',
-                        pointerId: event.pointerId,
-                        lineId: line.id,
-                        startClientX: event.clientX,
-                        windowDurationMs: visibleWindowMs,
-                        originalStartMs: segment.startMs,
-                        originalEndMs: segment.endMs,
-                        hasDragged: true,
-                      };
-                      setFollowPlayhead(false);
-                      setManualWindowStartMs(visibleStartMs);
-                      onSelectSegment(line.id);
-                      onPreviewSegmentDrag(line.id, segment.startMs, segment.endMs);
-                      event.currentTarget.setPointerCapture(event.pointerId);
-                    }}
-                    onPointerMove={(event) => {
-                      const dragState = dragStateRef.current;
-                      if (
-                        !dragState ||
-                        dragState.mode !== 'resize-left' ||
-                        dragState.pointerId !== event.pointerId ||
-                        dragState.lineId !== line.id
-                      ) {
-                        return;
-                      }
+                  {canShowSingleSelectionManipulators ? (
+                    <span
+                      className="timeline-segment-handle timeline-segment-handle-left"
+                      aria-hidden="true"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        dragStateRef.current = {
+                          mode: 'resize-left',
+                          pointerId: event.pointerId,
+                          lineId: line.id,
+                          selectedLineIds: [line.id],
+                          startClientX: event.clientX,
+                          windowDurationMs: visibleWindowMs,
+                          originalStartMs: segment.startMs,
+                          originalEndMs: segment.endMs,
+                          hasDragged: true,
+                        };
+                        setFollowPlayhead(false);
+                        setManualWindowStartMs(visibleStartMs);
+                        selectOnlySegment(line.id);
+                        onPreviewSegmentDrag([
+                          { lineId: line.id, startMs: segment.startMs, endMs: segment.endMs },
+                        ]);
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                      }}
+                      onPointerMove={(event) => {
+                        const dragState = dragStateRef.current;
+                        if (
+                          !dragState ||
+                          dragState.mode !== 'resize-left' ||
+                          dragState.pointerId !== event.pointerId ||
+                          dragState.lineId !== line.id
+                        ) {
+                          return;
+                        }
 
-                      updateDraggedSegment(
-                        line.id,
-                        event.clientX - dragState.startClientX,
-                        dragState,
-                      );
-                    }}
-                    onPointerUp={(event) => {
-                      const dragState = dragStateRef.current;
-                      if (
-                        !dragState ||
-                        dragState.mode !== 'resize-left' ||
-                        dragState.pointerId !== event.pointerId ||
-                        dragState.lineId !== line.id
-                      ) {
-                        return;
-                      }
+                        updateDraggedSegments(
+                          event.clientX - dragState.startClientX,
+                          dragState,
+                        );
+                      }}
+                      onPointerUp={(event) => {
+                        const dragState = dragStateRef.current;
+                        if (
+                          !dragState ||
+                          dragState.mode !== 'resize-left' ||
+                          dragState.pointerId !== event.pointerId ||
+                          dragState.lineId !== line.id
+                        ) {
+                          return;
+                        }
 
-                      const nextSegment = updateDraggedSegment(
-                        line.id,
-                        event.clientX - dragState.startClientX,
-                        dragState,
-                      );
-                      dragStateRef.current = null;
-                      event.currentTarget.releasePointerCapture(event.pointerId);
-                      onCommitSegmentDrag(line.id, nextSegment.startMs, nextSegment.endMs);
-                    }}
-                    onPointerCancel={(event) => {
-                      const dragState = dragStateRef.current;
-                      if (
-                        !dragState ||
-                        dragState.mode !== 'resize-left' ||
-                        dragState.pointerId !== event.pointerId ||
-                        dragState.lineId !== line.id
-                      ) {
-                        return;
-                      }
+                        const nextSegments = updateDraggedSegments(
+                          event.clientX - dragState.startClientX,
+                          dragState,
+                        );
+                        dragStateRef.current = null;
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                        onCommitSegmentDrag(nextSegments);
+                      }}
+                      onPointerCancel={(event) => {
+                        const dragState = dragStateRef.current;
+                        if (
+                          !dragState ||
+                          dragState.mode !== 'resize-left' ||
+                          dragState.pointerId !== event.pointerId ||
+                          dragState.lineId !== line.id
+                        ) {
+                          return;
+                        }
 
-                      dragStateRef.current = null;
-                      event.currentTarget.releasePointerCapture(event.pointerId);
-                      onCancelSegmentDrag();
-                    }}
-                  />
+                        dragStateRef.current = null;
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                        onCancelSegmentDrag();
+                      }}
+                    />
+                  ) : null}
                   {labelMode === 'lyric' ? (
                     <>
                       <span className="timeline-segment-label">{line.text}</span>
@@ -622,86 +705,89 @@ export function TimelineOverview({
                   {labelMode === 'index' ? (
                     <span className="timeline-segment-index">{line.index + 1}</span>
                   ) : null}
-                  <span
-                    className="timeline-segment-handle timeline-segment-handle-right"
-                    aria-hidden="true"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onPointerDown={(event) => {
-                      if (event.button !== 0) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      dragStateRef.current = {
-                        mode: 'resize-right',
-                        pointerId: event.pointerId,
-                        lineId: line.id,
-                        startClientX: event.clientX,
-                        windowDurationMs: visibleWindowMs,
-                        originalStartMs: segment.startMs,
-                        originalEndMs: segment.endMs,
-                        hasDragged: true,
-                      };
-                      setFollowPlayhead(false);
-                      setManualWindowStartMs(visibleStartMs);
-                      onSelectSegment(line.id);
-                      onPreviewSegmentDrag(line.id, segment.startMs, segment.endMs);
-                      event.currentTarget.setPointerCapture(event.pointerId);
-                    }}
-                    onPointerMove={(event) => {
-                      const dragState = dragStateRef.current;
-                      if (
-                        !dragState ||
-                        dragState.mode !== 'resize-right' ||
-                        dragState.pointerId !== event.pointerId ||
-                        dragState.lineId !== line.id
-                      ) {
-                        return;
-                      }
+                  {canShowSingleSelectionManipulators ? (
+                    <span
+                      className="timeline-segment-handle timeline-segment-handle-right"
+                      aria-hidden="true"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onPointerDown={(event) => {
+                        if (event.button !== 0) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        dragStateRef.current = {
+                          mode: 'resize-right',
+                          pointerId: event.pointerId,
+                          lineId: line.id,
+                          selectedLineIds: [line.id],
+                          startClientX: event.clientX,
+                          windowDurationMs: visibleWindowMs,
+                          originalStartMs: segment.startMs,
+                          originalEndMs: segment.endMs,
+                          hasDragged: true,
+                        };
+                        setFollowPlayhead(false);
+                        setManualWindowStartMs(visibleStartMs);
+                        selectOnlySegment(line.id);
+                        onPreviewSegmentDrag([
+                          { lineId: line.id, startMs: segment.startMs, endMs: segment.endMs },
+                        ]);
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                      }}
+                      onPointerMove={(event) => {
+                        const dragState = dragStateRef.current;
+                        if (
+                          !dragState ||
+                          dragState.mode !== 'resize-right' ||
+                          dragState.pointerId !== event.pointerId ||
+                          dragState.lineId !== line.id
+                        ) {
+                          return;
+                        }
 
-                      updateDraggedSegment(
-                        line.id,
-                        event.clientX - dragState.startClientX,
-                        dragState,
-                      );
-                    }}
-                    onPointerUp={(event) => {
-                      const dragState = dragStateRef.current;
-                      if (
-                        !dragState ||
-                        dragState.mode !== 'resize-right' ||
-                        dragState.pointerId !== event.pointerId ||
-                        dragState.lineId !== line.id
-                      ) {
-                        return;
-                      }
+                        updateDraggedSegments(
+                          event.clientX - dragState.startClientX,
+                          dragState,
+                        );
+                      }}
+                      onPointerUp={(event) => {
+                        const dragState = dragStateRef.current;
+                        if (
+                          !dragState ||
+                          dragState.mode !== 'resize-right' ||
+                          dragState.pointerId !== event.pointerId ||
+                          dragState.lineId !== line.id
+                        ) {
+                          return;
+                        }
 
-                      const nextSegment = updateDraggedSegment(
-                        line.id,
-                        event.clientX - dragState.startClientX,
-                        dragState,
-                      );
-                      dragStateRef.current = null;
-                      event.currentTarget.releasePointerCapture(event.pointerId);
-                      onCommitSegmentDrag(line.id, nextSegment.startMs, nextSegment.endMs);
-                    }}
-                    onPointerCancel={(event) => {
-                      const dragState = dragStateRef.current;
-                      if (
-                        !dragState ||
-                        dragState.mode !== 'resize-right' ||
-                        dragState.pointerId !== event.pointerId ||
-                        dragState.lineId !== line.id
-                      ) {
-                        return;
-                      }
+                        const nextSegments = updateDraggedSegments(
+                          event.clientX - dragState.startClientX,
+                          dragState,
+                        );
+                        dragStateRef.current = null;
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                        onCommitSegmentDrag(nextSegments);
+                      }}
+                      onPointerCancel={(event) => {
+                        const dragState = dragStateRef.current;
+                        if (
+                          !dragState ||
+                          dragState.mode !== 'resize-right' ||
+                          dragState.pointerId !== event.pointerId ||
+                          dragState.lineId !== line.id
+                        ) {
+                          return;
+                        }
 
-                      dragStateRef.current = null;
-                      event.currentTarget.releasePointerCapture(event.pointerId);
-                      onCancelSegmentDrag();
-                    }}
-                  />
+                        dragStateRef.current = null;
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                        onCancelSegmentDrag();
+                      }}
+                    />
+                  ) : null}
                 </button>
               );
             })

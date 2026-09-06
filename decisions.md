@@ -109,3 +109,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** Pointer capture keeps one drag interaction coherent across movement, the threshold preserves ordinary selection behavior, and the transient preview exposes live timing changes without treating every pointer move as a committed edit.
 - **Rejected alternatives:** Mouse-only dragging, immediate drag activation on pointer down, updating audio playback position during drag, and introducing a separate persistence or reducer action just for timeline drag commits.
 - **Consequences:** Timeline dragging remains a local UI interaction layered on top of the existing timing model, preserves segment duration while clamping within track bounds, and allows overlaps without special-case merge behavior.
+
+### 2026-09-06 — Decision: Commit multi-segment timeline moves through one atomic domain action
+
+- **Context:** Timeline multi-selection now allows a drag gesture to move several selected completed segments together while preserving their durations and relative spacing.
+- **Choice:** Preview the whole moved group transiently during pointer interaction, then commit all moved segments together through one `editSegments` domain action on pointer release.
+- **Rationale:** A grouped commit keeps the reducer as the single source of truth for the final timing update, avoids transient partial saves when several selected segments move together, and ensures overlap checks and messaging evaluate the final combined state once.
+- **Rejected alternatives:** Dispatching a sequence of individual `editSegment` commits, committing every pointer move as state, and treating group movement as a timeline-only mutation outside the reducer.
+- **Consequences:** Timeline group dragging can update the primary selected segment live in the inspector while still landing as one atomic state change when released.

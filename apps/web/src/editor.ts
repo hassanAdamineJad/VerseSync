@@ -56,6 +56,7 @@ export type EditorAction =
   | { type: 'finish'; atMs: number }
   | { type: 'mediaEnded'; durationMs: number }
   | { type: 'editSegment'; lineId: string; startMs: number; endMs: number }
+  | { type: 'editSegments'; segments: CompletedSegment[] }
   | { type: 'clearMessage' };
 
 export type LyricParseResult =
@@ -269,42 +270,56 @@ function mediaEnded(state: EditorState, durationMs: number): EditorState {
   };
 }
 
+function applySegmentUpdates(
+  state: EditorState,
+  updates: CompletedSegment[],
+): EditorState {
+  const nextSegments = { ...state.segments };
+
+  for (const update of updates) {
+    if (!nextSegments[update.lineId]) {
+      return { ...state, message: 'Only completed lines have editable start and end times.' };
+    }
+    if (
+      !Number.isInteger(update.startMs) ||
+      !Number.isInteger(update.endMs) ||
+      update.startMs < 0 ||
+      update.endMs > state.document.durationMs ||
+      update.endMs <= update.startMs
+    ) {
+      return {
+        ...state,
+        message: `Use whole milliseconds between 0 and ${state.document.durationMs}, with end later than start.`,
+      };
+    }
+
+    nextSegments[update.lineId] = update;
+  }
+
+  const overlaps = Object.values(nextSegments).some((segment, index, allSegments) =>
+    allSegments.some(
+      (otherSegment, otherIndex) =>
+        otherIndex > index &&
+        segment.startMs < otherSegment.endMs &&
+        segment.endMs > otherSegment.startMs,
+    ),
+  );
+
+  return {
+    ...state,
+    segments: nextSegments,
+    message: overlaps ? 'Timing saved. This line overlaps another completed line.' : 'Timing saved.',
+    dirty: true,
+  };
+}
+
 function editSegment(
   state: EditorState,
   lineId: string,
   startMs: number,
   endMs: number,
 ): EditorState {
-  if (!state.segments[lineId]) {
-    return { ...state, message: 'Only completed lines have editable start and end times.' };
-  }
-  if (
-    !Number.isInteger(startMs) ||
-    !Number.isInteger(endMs) ||
-    startMs < 0 ||
-    endMs > state.document.durationMs ||
-    endMs <= startMs
-  ) {
-    return {
-      ...state,
-      message: `Use whole milliseconds between 0 and ${state.document.durationMs}, with end later than start.`,
-    };
-  }
-
-  const updated = { lineId, startMs, endMs };
-  const overlaps = Object.values(state.segments).some(
-    (segment) =>
-      segment.lineId !== lineId &&
-      updated.startMs < segment.endMs &&
-      updated.endMs > segment.startMs,
-  );
-
-  return {
-    ...state,
-    segments: { ...state.segments, [lineId]: updated },
-    message: overlaps ? 'Timing saved. This line overlaps another completed line.' : 'Timing saved.',
-    dirty: true,
-  };
+  return applySegmentUpdates(state, [{ lineId, startMs, endMs }]);
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -334,6 +349,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return mediaEnded(state, action.durationMs);
     case 'editSegment':
       return editSegment(state, action.lineId, action.startMs, action.endMs);
+    case 'editSegments':
+      return applySegmentUpdates(state, action.segments);
     case 'clearMessage':
       return { ...state, message: null };
   }

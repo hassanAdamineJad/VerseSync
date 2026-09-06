@@ -4,14 +4,14 @@ import { TimelineOverview } from './TimelineOverview';
 
 type Props = {
   editor: EditorState;
-  dragPreview: CompletedSegment | null;
+  dragPreviewSegments: CompletedSegment[] | null;
   currentTimeMs: number;
   isPlaying: boolean;
   isReady: boolean;
   playbackError: string | null;
   onSelectSegment: (lineId: string) => void;
-  onPreviewSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
-  onCommitSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
+  onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
+  onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
   onTogglePlayback: () => void;
   onSeek: (milliseconds: number) => void;
@@ -28,7 +28,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export function CaptureWorkspace({
   editor,
-  dragPreview,
+  dragPreviewSegments,
   currentTimeMs,
   isPlaying,
   isReady,
@@ -134,7 +134,7 @@ export function CaptureWorkspace({
 
       <TimelineOverview
         editor={editor}
-        dragPreview={dragPreview}
+        dragPreviewSegments={dragPreviewSegments}
         currentTimeMs={currentTimeMs}
         onSelectSegment={onSelectSegment}
         onPreviewSegmentDrag={onPreviewSegmentDrag}

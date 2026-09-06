@@ -3,18 +3,17 @@ import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 
 type Props = {
   editor: EditorState;
-  dragPreview: CompletedSegment | null;
+  dragPreviewSegments: CompletedSegment[] | null;
   onApply: (lineId: string, startMs: number, endMs: number) => void;
 };
 
-export function SegmentInspector({ editor, dragPreview, onApply }: Props) {
+export function SegmentInspector({ editor, dragPreviewSegments, onApply }: Props) {
   const selectedLine = editor.document.lines.find(
     (line) => line.id === editor.selectedLineId,
   );
   const segment = selectedLine
-    ? dragPreview?.lineId === selectedLine.id
-      ? dragPreview
-      : editor.segments[selectedLine.id]
+    ? (dragPreviewSegments?.find((preview) => preview.lineId === selectedLine.id) ??
+      editor.segments[selectedLine.id])
     : undefined;
   const isOpen = selectedLine?.id === editor.openSegment?.lineId;
   const [startDraft, setStartDraft] = useState('');
