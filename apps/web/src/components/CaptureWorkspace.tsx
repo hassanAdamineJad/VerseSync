@@ -8,6 +8,7 @@ type LinePlacementPreview = {
   clientX: number;
   clientY: number;
   segment: CompletedSegment | null;
+  snapTargetMs: number | null;
 } | null;
 
 type TimelineLaneMetrics = {

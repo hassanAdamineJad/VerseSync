@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime, type CompletedSegment, type EditorState } from '../editor';
+import { buildSnapTargets, findNearestSnap, getSnapThresholdMs } from '../timelineSnapping';
 
 type Props = {
   editor: EditorState;
@@ -10,6 +11,7 @@ type Props = {
     clientX: number;
     clientY: number;
     segment: CompletedSegment | null;
+    snapTargetMs: number | null;
   } | null;
   currentTimeMs: number;
   onSelectSegment: (lineId: string) => void;
@@ -235,6 +237,7 @@ export function TimelineOverview({
   const [followPlayhead, setFollowPlayhead] = useState(true);
   const [manualWindowStartMs, setManualWindowStartMs] = useState(0);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
+  const [activeSnapTargetMs, setActiveSnapTargetMs] = useState<number | null>(null);
   const requestedWindowMs = windowPreset === 'full' ? durationMs : windowPreset * 1000;
   const centeredWindow = useMemo(
     () => getCenteredWindow(durationMs, currentTimeMs, requestedWindowMs),
@@ -299,6 +302,7 @@ export function TimelineOverview({
   );
   const selectedLineIdSet = useMemo(() => new Set(selectedLineIds), [selectedLineIds]);
   const primarySelectedLineId = selectedLineIds.at(-1) ?? null;
+  const hasMultiSelection = selectedLineIds.length > 1;
 
   useEffect(() => {
     if (!editor.selectedLineId || !editor.segments[editor.selectedLineId]) return;
@@ -374,6 +378,9 @@ export function TimelineOverview({
           visibleWindowMs,
         ) - toWindowPercent(linePlacementPreview.segment.startMs, visibleStartMs, visibleWindowMs)
       : null;
+  const snapGuideMs = activeSnapTargetMs ?? linePlacementPreview?.snapTargetMs ?? null;
+  const snapGuidePercent =
+    snapGuideMs != null ? toWindowPercent(snapGuideMs, visibleStartMs, visibleWindowMs) : null;
   const presetIndex = WINDOW_PRESETS.indexOf(windowPreset);
   const canZoomIn = presetIndex > 0;
   const canZoomOut = presetIndex < WINDOW_PRESETS.length - 1;
@@ -408,36 +415,103 @@ export function TimelineOverview({
     };
   }, [durationMs, onTimelineLaneMetricsChange, visibleStartMs, visibleWindowMs]);
 
-  const getDraggedSegment = (deltaClientX: number, dragState: DragState) => {
+  const getDraggedSegment = (
+    deltaClientX: number,
+    dragState: DragState,
+    snappingDisabled: boolean,
+  ) => {
     const laneWidth = laneWidthPx || 1;
     const deltaMs = Math.round((deltaClientX / laneWidth) * dragState.windowDurationMs);
+    const thresholdMs = getSnapThresholdMs(dragState.windowDurationMs, laneWidth);
 
     if (dragState.mode === 'move') {
       const segmentDurationMs = dragState.originalEndMs - dragState.originalStartMs;
       const maxStartMs = Math.max(0, durationMs - segmentDurationMs);
-      const startMs = Math.min(
-        Math.max(0, dragState.originalStartMs + deltaMs),
-        maxStartMs,
-      );
-      return { startMs, endMs: startMs + segmentDurationMs };
+      let startMs = Math.min(Math.max(0, dragState.originalStartMs + deltaMs), maxStartMs);
+      let snapTargetMs: number | null = null;
+      if (!snappingDisabled) {
+        const targets = buildSnapTargets(
+          editor.segments,
+          dragState.selectedLineIds.includes(dragState.lineId)
+            ? dragState.selectedLineIds
+            : [dragState.lineId],
+          currentTimeMs,
+        );
+        const candidateLeadingMs = startMs;
+        const candidateTrailingMs = startMs + segmentDurationMs;
+        const snappedEdgeMs = findNearestSnap(
+          [candidateLeadingMs, candidateTrailingMs],
+          targets,
+          thresholdMs,
+          (targetMs) => {
+            const edgeToMatch =
+              Math.abs(targetMs - candidateLeadingMs) <= Math.abs(targetMs - candidateTrailingMs)
+                ? candidateLeadingMs
+                : candidateTrailingMs;
+            const proposedStartMs =
+              edgeToMatch === candidateLeadingMs ? targetMs : targetMs - segmentDurationMs;
+            return proposedStartMs >= 0 && proposedStartMs <= maxStartMs;
+          },
+        );
+        if (snappedEdgeMs != null) {
+          const snapFromStartDistance = Math.abs(snappedEdgeMs - candidateLeadingMs);
+          const snapFromEndDistance = Math.abs(snappedEdgeMs - candidateTrailingMs);
+          startMs =
+            snapFromStartDistance <= snapFromEndDistance
+              ? snappedEdgeMs
+              : snappedEdgeMs - segmentDurationMs;
+          snapTargetMs = snappedEdgeMs;
+        }
+      }
+      return { startMs, endMs: startMs + segmentDurationMs, snapTargetMs };
     }
 
     if (dragState.mode === 'resize-left') {
-      const startMs = Math.min(
+      let startMs = Math.min(
         Math.max(0, dragState.originalStartMs + deltaMs),
         dragState.originalEndMs - 1,
       );
-      return { startMs, endMs: dragState.originalEndMs };
+      let snapTargetMs: number | null = null;
+      if (!snappingDisabled) {
+        const snappedStartMs = findNearestSnap(
+          [startMs],
+          buildSnapTargets(editor.segments, [dragState.lineId], currentTimeMs),
+          thresholdMs,
+          (targetMs) => targetMs >= 0 && targetMs < dragState.originalEndMs,
+        );
+        if (snappedStartMs != null) {
+          startMs = snappedStartMs;
+          snapTargetMs = snappedStartMs;
+        }
+      }
+      return { startMs, endMs: dragState.originalEndMs, snapTargetMs };
     }
 
-    const endMs = Math.max(
+    let endMs = Math.max(
       Math.min(durationMs, dragState.originalEndMs + deltaMs),
       dragState.originalStartMs + 1,
     );
-    return { startMs: dragState.originalStartMs, endMs };
+    let snapTargetMs: number | null = null;
+    if (!snappingDisabled) {
+      const snappedEndMs = findNearestSnap(
+        [endMs],
+        buildSnapTargets(editor.segments, [dragState.lineId], currentTimeMs),
+        thresholdMs,
+        (targetMs) => targetMs > dragState.originalStartMs && targetMs <= durationMs,
+      );
+      if (snappedEndMs != null) {
+        endMs = snappedEndMs;
+        snapTargetMs = snappedEndMs;
+      }
+    }
+    return { startMs: dragState.originalStartMs, endMs, snapTargetMs };
   };
 
-  const updateDraggedSegments = (deltaClientX: number, dragState: DragState) => {
+  const updateDraggedSegments = (
+    deltaClientX: number,
+    dragState: DragState,
+    snappingDisabled: boolean,
+  ) => {
     const selectedGroupLineIds =
       dragState.mode === 'move' && dragState.selectedLineIds.includes(dragState.lineId)
         ? dragState.selectedLineIds
@@ -448,8 +522,15 @@ export function TimelineOverview({
       .filter((segment): segment is CompletedSegment => segment != null);
 
     if (dragState.mode !== 'move') {
-      const nextSegment = getDraggedSegment(deltaClientX, dragState);
-      const previewSegments = [{ lineId: dragState.lineId, ...nextSegment }];
+      const nextSegment = getDraggedSegment(deltaClientX, dragState, snappingDisabled);
+      const previewSegments = [
+        {
+          lineId: dragState.lineId,
+          startMs: nextSegment.startMs,
+          endMs: nextSegment.endMs,
+        },
+      ];
+      setActiveSnapTargetMs(nextSegment.snapTargetMs);
       onPreviewSegmentDrag(previewSegments);
       return previewSegments;
     }
@@ -458,17 +539,50 @@ export function TimelineOverview({
     const rawDeltaMs = Math.round((deltaClientX / laneWidth) * dragState.windowDurationMs);
     const earliestStartMs = Math.min(...baseSegments.map((segment) => segment.startMs));
     const latestEndMs = Math.max(...baseSegments.map((segment) => segment.endMs));
-    const clampedDeltaMs = Math.min(
+    const minDeltaMs = -earliestStartMs;
+    const maxDeltaMs = durationMs - latestEndMs;
+    let appliedDeltaMs = Math.min(
       Math.max(rawDeltaMs, -earliestStartMs),
       durationMs - latestEndMs,
     );
+    let snapTargetMs: number | null = null;
+
+    if (!snappingDisabled) {
+      const candidateLeadingMs = earliestStartMs + appliedDeltaMs;
+      const candidateTrailingMs = latestEndMs + appliedDeltaMs;
+      const snappedEdgeMs = findNearestSnap(
+        [candidateLeadingMs, candidateTrailingMs],
+        buildSnapTargets(editor.segments, selectedGroupLineIds, currentTimeMs),
+        getSnapThresholdMs(dragState.windowDurationMs, laneWidth),
+        (targetMs) => {
+          const edgeToMatch =
+            Math.abs(targetMs - candidateLeadingMs) <= Math.abs(targetMs - candidateTrailingMs)
+              ? candidateLeadingMs
+              : candidateTrailingMs;
+          const proposedDeltaMs =
+            appliedDeltaMs + (targetMs - edgeToMatch);
+          return proposedDeltaMs >= minDeltaMs && proposedDeltaMs <= maxDeltaMs;
+        },
+      );
+      if (snappedEdgeMs != null) {
+        const snapFromStartDistance = Math.abs(snappedEdgeMs - candidateLeadingMs);
+        const snapFromEndDistance = Math.abs(snappedEdgeMs - candidateTrailingMs);
+        appliedDeltaMs =
+          appliedDeltaMs +
+          (snapFromStartDistance <= snapFromEndDistance
+            ? snappedEdgeMs - candidateLeadingMs
+            : snappedEdgeMs - candidateTrailingMs);
+        snapTargetMs = snappedEdgeMs;
+      }
+    }
 
     const previewSegments = baseSegments.map((segment) => ({
       lineId: segment.lineId,
-      startMs: segment.startMs + clampedDeltaMs,
-      endMs: segment.endMs + clampedDeltaMs,
+      startMs: segment.startMs + appliedDeltaMs,
+      endMs: segment.endMs + appliedDeltaMs,
     }));
 
+    setActiveSnapTargetMs(snapTargetMs);
     onPreviewSegmentDrag(previewSegments);
     return previewSegments;
   };
@@ -509,6 +623,12 @@ export function TimelineOverview({
           </p>
         </div>
         <div className="timeline-header-actions">
+          {hasMultiSelection ? (
+            <div className="timeline-selection-summary" role="status" aria-live="polite">
+              <strong>{selectedLineIds.length} segments selected</strong>
+              <p>Drag any selected segment to move the group.</p>
+            </div>
+          ) : null}
           <span className="source-badge">Timed lines {timedSegments.length}</span>
           <div className="timeline-zoom-controls" aria-label="Timeline zoom">
             <button
@@ -550,6 +670,13 @@ export function TimelineOverview({
       </div>
 
       <div className="timeline-surface">
+        {snapGuidePercent != null ? (
+          <div
+            className="timeline-snap-guide"
+            style={{ left: `${Math.min(Math.max(snapGuidePercent, 0), 100)}%` }}
+            aria-hidden="true"
+          />
+        ) : null}
         <div className="waveform-band" aria-label="Waveform preview">
           {visiblePeaks.length > 0 ? (
             visiblePeaks.map((peak, index) => (
@@ -569,11 +696,6 @@ export function TimelineOverview({
         <div ref={laneRef} className="segment-lane" aria-label="Timed lyric segments">
           {linePlacementPreview?.segment && placementPreviewPercent != null && placementPreviewWidthPercent != null ? (
             <>
-              <div
-                className="timeline-placement-guide"
-                style={{ left: `${Math.min(Math.max(placementPreviewPercent, 0), 100)}%` }}
-                aria-hidden="true"
-              />
               <div
                 className="timeline-placement-preview"
                 style={{
@@ -659,6 +781,7 @@ export function TimelineOverview({
                     updateDraggedSegments(
                       deltaClientX,
                       dragState,
+                      event.altKey,
                     );
                   }}
                   onPointerUp={(event) => {
@@ -674,15 +797,18 @@ export function TimelineOverview({
                     if (!dragState.hasDragged) {
                       dragStateRef.current = null;
                       event.currentTarget.releasePointerCapture(event.pointerId);
+                      setActiveSnapTargetMs(null);
                       return;
                     }
 
                     const nextSegments = updateDraggedSegments(
                       event.clientX - dragState.startClientX,
                       dragState,
+                      event.altKey,
                     );
                     dragStateRef.current = null;
                     event.currentTarget.releasePointerCapture(event.pointerId);
+                    setActiveSnapTargetMs(null);
                     onCommitSegmentDrag(nextSegments);
                   }}
                   onPointerCancel={(event) => {
@@ -697,6 +823,7 @@ export function TimelineOverview({
 
                     dragStateRef.current = null;
                     event.currentTarget.releasePointerCapture(event.pointerId);
+                    setActiveSnapTargetMs(null);
                     if (dragState.hasDragged) onCancelSegmentDrag();
                   }}
                 >
@@ -745,6 +872,7 @@ export function TimelineOverview({
                         updateDraggedSegments(
                           event.clientX - dragState.startClientX,
                           dragState,
+                          event.altKey,
                         );
                       }}
                       onPointerUp={(event) => {
@@ -761,9 +889,11 @@ export function TimelineOverview({
                         const nextSegments = updateDraggedSegments(
                           event.clientX - dragState.startClientX,
                           dragState,
+                          event.altKey,
                         );
                         dragStateRef.current = null;
                         event.currentTarget.releasePointerCapture(event.pointerId);
+                        setActiveSnapTargetMs(null);
                         onCommitSegmentDrag(nextSegments);
                       }}
                       onPointerCancel={(event) => {
@@ -779,6 +909,7 @@ export function TimelineOverview({
 
                         dragStateRef.current = null;
                         event.currentTarget.releasePointerCapture(event.pointerId);
+                        setActiveSnapTargetMs(null);
                         onCancelSegmentDrag();
                       }}
                     />
@@ -836,6 +967,7 @@ export function TimelineOverview({
                         updateDraggedSegments(
                           event.clientX - dragState.startClientX,
                           dragState,
+                          event.altKey,
                         );
                       }}
                       onPointerUp={(event) => {
@@ -852,9 +984,11 @@ export function TimelineOverview({
                         const nextSegments = updateDraggedSegments(
                           event.clientX - dragState.startClientX,
                           dragState,
+                          event.altKey,
                         );
                         dragStateRef.current = null;
                         event.currentTarget.releasePointerCapture(event.pointerId);
+                        setActiveSnapTargetMs(null);
                         onCommitSegmentDrag(nextSegments);
                       }}
                       onPointerCancel={(event) => {
@@ -870,6 +1004,7 @@ export function TimelineOverview({
 
                         dragStateRef.current = null;
                         event.currentTarget.releasePointerCapture(event.pointerId);
+                        setActiveSnapTargetMs(null);
                         onCancelSegmentDrag();
                       }}
                     />

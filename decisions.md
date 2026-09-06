@@ -125,3 +125,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** A short provisional segment makes placement useful immediately without guessing exact boundaries, and keeping placement independent from capture avoids surprising changes to the active line while still letting later capture naturally skip newly completed lines.
 - **Rejected alternatives:** Requiring exact start and end selection during placement, choosing duration from lyric text length or waveform heuristics, and mutating selection, segment timing, and capture cursor through separate updates.
 - **Consequences:** Drag-to-place becomes a fast initial placement tool, newly dropped lines open directly in the inspector for correction, and idle capture must advance past a newly completed cursor line when placement filled it in.
+
+### 2026-09-06 — Decision: Snap timeline edits to the playhead and segment boundaries with an Alt bypass
+
+- **Context:** Timeline interactions now include single-segment moves, grouped moves, edge resizing, and sidebar drag-to-place, all of which benefit from lightweight alignment help without introducing a beat grid or changing playback state.
+- **Choice:** Snap only to the current playhead and the start or end boundaries of other completed segments, use an 8px threshold converted through the active visible-window scale, show one dashed snap guide only while a target is actively applied, and let holding Alt temporarily disable snapping for precise free movement.
+- **Rationale:** These targets support practical lyric alignment without inventing musical structure, a pixel-based threshold keeps the feel consistent across zoom levels, and a modifier bypass gives precision control without adding a persistent mode toggle.
+- **Rejected alternatives:** Snapping to ruler ticks, using a fixed millisecond threshold regardless of zoom, keeping the guide visible when not actively snapping, and adding a dedicated snap on/off control instead of a transient modifier key.
+- **Consequences:** Timeline movement, resizing, and provisional placement can align quickly to nearby meaningful timing anchors while preserving track bounds, segment duration rules, and existing capture behavior.

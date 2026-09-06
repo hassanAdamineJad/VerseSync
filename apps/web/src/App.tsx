@@ -16,6 +16,7 @@ import {
   type EditorDocument,
   type EditorState,
 } from './editor';
+import { buildSnapTargets, findNearestSnap, getSnapThresholdMs } from './timelineSnapping';
 import {
   useAudioController,
   type PreparedAudioSource,
@@ -35,7 +36,12 @@ type LinePlacementPreview = {
   clientX: number;
   clientY: number;
   segment: CompletedSegment | null;
+  snapTargetMs: number | null;
 } | null;
+type PlacementComputation = {
+  segment: CompletedSegment | null;
+  snapTargetMs: number | null;
+};
 type TimelineLaneMetrics = {
   left: number;
   right: number;
@@ -204,13 +210,15 @@ export default function App() {
     setLinePlacementPreview(null);
   }, [cancelPreparedSource]);
 
-  const updateLinePlacementPreview = useCallback(
-    (lineId: string, text: string, clientX: number, clientY: number) => {
+  const buildPlacementSegment = useCallback(
+    (
+      lineId: string,
+      clientX: number,
+      clientY: number,
+      snappingDisabled: boolean,
+    ): PlacementComputation => {
       const metrics = timelineLaneMetricsRef.current;
-      if (!metrics) {
-        setLinePlacementPreview({ lineId, text, clientX, clientY, segment: null });
-        return;
-      }
+      if (!metrics || !editor) return { segment: null, snapTargetMs: null };
 
       const isInsideLane =
         clientX >= metrics.left &&
@@ -218,10 +226,7 @@ export default function App() {
         clientY >= metrics.top &&
         clientY <= metrics.bottom;
 
-      if (!isInsideLane) {
-        setLinePlacementPreview({ lineId, text, clientX, clientY, segment: null });
-        return;
-      }
+      if (!isInsideLane) return { segment: null, snapTargetMs: null };
 
       const ratio =
         metrics.right === metrics.left
@@ -230,30 +235,67 @@ export default function App() {
       const rawStartMs = Math.round(
         metrics.visibleStartMs + ratio * metrics.visibleWindowMs,
       );
-      const startMs = Math.min(Math.max(0, rawStartMs), Math.max(0, metrics.durationMs - 1));
+      const thresholdMs = getSnapThresholdMs(
+        metrics.visibleWindowMs,
+        metrics.right - metrics.left,
+      );
+      const snapTargets = buildSnapTargets(editor.segments, [], playback.currentTimeMs);
+      const snapTargetMs =
+        snappingDisabled
+          ? null
+          : findNearestSnap([rawStartMs], snapTargets, thresholdMs);
+      const startMs = Math.min(
+        Math.max(0, snapTargetMs ?? rawStartMs),
+        Math.max(0, metrics.durationMs - 1),
+      );
       const endMs = Math.min(startMs + 3000, metrics.durationMs);
-      const segment =
-        endMs > startMs
-          ? { lineId, startMs, endMs }
-          : { lineId, startMs: Math.max(0, metrics.durationMs - 1), endMs: metrics.durationMs };
-
-      setLinePlacementPreview({ lineId, text, clientX, clientY, segment });
+      return {
+        segment:
+          endMs > startMs
+            ? { lineId, startMs, endMs }
+            : { lineId, startMs: Math.max(0, metrics.durationMs - 1), endMs: metrics.durationMs },
+        snapTargetMs,
+      };
     },
-    [],
+    [editor, playback.currentTimeMs],
   );
 
-  const commitLinePlacement = useCallback(() => {
-    setLinePlacementPreview((current) => {
-      if (!current?.segment) return null;
-      dispatch({
-        type: 'placeSegment',
-        lineId: current.segment.lineId,
-        startMs: current.segment.startMs,
-        endMs: current.segment.endMs,
-      });
-      return null;
-    });
-  }, []);
+  const updateLinePlacementPreview = useCallback(
+    (
+      lineId: string,
+      text: string,
+      clientX: number,
+      clientY: number,
+      snappingDisabled: boolean,
+    ) => {
+      const { segment, snapTargetMs } = buildPlacementSegment(
+        lineId,
+        clientX,
+        clientY,
+        snappingDisabled,
+      );
+      setLinePlacementPreview({ lineId, text, clientX, clientY, segment, snapTargetMs });
+    },
+    [buildPlacementSegment],
+  );
+
+  const commitLinePlacement = useCallback(
+    (lineId: string, _text: string, clientX: number, clientY: number, snappingDisabled: boolean) => {
+      const { segment } = buildPlacementSegment(lineId, clientX, clientY, snappingDisabled);
+      if (segment) {
+        setLinePlacementPreview(null);
+        dispatch({
+          type: 'placeSegment',
+          lineId: segment.lineId,
+          startMs: segment.startMs,
+          endMs: segment.endMs,
+        });
+        return;
+      }
+      setLinePlacementPreview(null);
+    },
+    [buildPlacementSegment],
+  );
 
   const stamp = useCallback(() => {
     dispatch({ type: 'stamp', atMs: readCurrentTimeMs() });

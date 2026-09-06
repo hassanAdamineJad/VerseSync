@@ -10,8 +10,15 @@ type Props = {
     text: string,
     clientX: number,
     clientY: number,
+    snappingDisabled: boolean,
   ) => void;
-  onPlacementDragEnd: () => void;
+  onPlacementDragEnd: (
+    lineId: string,
+    text: string,
+    clientX: number,
+    clientY: number,
+    snappingDisabled: boolean,
+  ) => void;
   onPlacementDragCancel: () => void;
 };
 
@@ -139,6 +146,7 @@ export function LyricsPanel({
                     dragState.text,
                     event.clientX,
                     event.clientY,
+                    event.altKey,
                   );
                 }}
                 onPointerUp={(event) => {
@@ -155,7 +163,13 @@ export function LyricsPanel({
                   event.currentTarget.releasePointerCapture(event.pointerId);
                   if (!dragState.hasDragged) return;
                   suppressClickLineIdRef.current = line.id;
-                  onPlacementDragEnd();
+                  onPlacementDragEnd(
+                    dragState.lineId,
+                    dragState.text,
+                    event.clientX,
+                    event.clientY,
+                    event.altKey,
+                  );
                 }}
                 onPointerCancel={(event) => {
                   const dragState = placementDragRef.current;
