@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { secondsToMilliseconds } from './editor';
+import { secondsToMilliseconds } from '../editor';
 
 type SourceInput =
   | { kind: 'seeded'; url: string }
