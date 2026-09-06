@@ -133,3 +133,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** These targets support practical lyric alignment without inventing musical structure, a pixel-based threshold keeps the feel consistent across zoom levels, and a modifier bypass gives precision control without adding a persistent mode toggle.
 - **Rejected alternatives:** Snapping to ruler ticks, using a fixed millisecond threshold regardless of zoom, keeping the guide visible when not actively snapping, and adding a dedicated snap on/off control instead of a transient modifier key.
 - **Consequences:** Timeline movement, resizing, and provisional placement can align quickly to nearby meaningful timing anchors while preserving track bounds, segment duration rules, and existing capture behavior.
+
+### 2026-09-06 — Decision: Gate the editor behind a dedicated track-setup entry screen
+
+- **Context:** The product now needs a clearer first-run path that separates choosing a sample or validating a local track from the heavier timing workspace, while preserving the existing import rules and session-only editor behavior.
+- **Choice:** Show a dedicated Track Setup screen before the editor opens, keep its fields initially empty, let `Try sample track` enter through the existing seeded loader, and let `Open timing workspace` submit the existing local file plus pasted-lyrics flow only when a file is chosen and at least one lyric line parses successfully.
+- **Rationale:** A dedicated setup step makes the entry flow easier to understand without changing the underlying document model or media lifecycle, and it keeps local validation and sample loading on the same trusted application paths already used inside the workspace.
+- **Rejected alternatives:** Auto-loading the seeded track on first render, pre-filling fake audio or lyrics, splitting setup into a separate route, and introducing a second source-normalization path just for the initial screen.
+- **Consequences:** Users now make an explicit sample-or-local choice before entering the editor, while the existing workspace and replacement-safety behavior remain unchanged after a track is active.

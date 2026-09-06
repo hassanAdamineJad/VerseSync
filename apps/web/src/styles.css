@@ -6,8 +6,15 @@
   --color-navy-850: #111e33;
   --color-navy-800: #17263d;
   --color-navy-700: #263a55;
+  --color-ink-950: #0b0d12;
+  --color-ink-900: #11141b;
+  --color-ink-850: #171b23;
+  --color-ink-800: #1d232d;
+  --color-ink-700: #2a313d;
   --color-cyan-400: #28d7ee;
   --color-cyan-300: #72e8f6;
+  --color-amber-400: #f59e0b;
+  --color-amber-300: #f8c56a;
   --color-rose-400: #fb7185;
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -93,6 +100,246 @@ kbd {
 
 .app-shell {
   @apply mx-auto min-h-screen max-w-[1600px] px-4 pb-6 sm:px-6;
+}
+
+.setup-app-shell {
+  @apply min-h-screen px-4 sm:px-6;
+}
+
+.setup-shell {
+  @apply flex min-h-screen items-center justify-center py-4 sm:py-6;
+  position: relative;
+  overflow: hidden;
+}
+
+.setup-card {
+  @apply mx-auto w-full max-w-5xl rounded-[1.6rem] border border-ink-700/80 bg-ink-900/96 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-5;
+  position: relative;
+  z-index: 1;
+}
+
+.setup-wave-layer {
+  @apply pointer-events-none fixed inset-0;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.72) 6%, black 14%, black 86%, rgba(0, 0, 0, 0.72) 94%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.72) 6%, black 14%, black 86%, rgba(0, 0, 0, 0.72) 94%, transparent 100%);
+}
+
+.setup-wave-canvas {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  height: min(48vh, 26rem);
+  transform: translateY(-50%);
+}
+
+.setup-wave-scroll-track {
+  display: flex;
+  width: 200vw;
+  height: 100%;
+  animation: setup-wave-scroll 22s linear infinite;
+}
+
+.setup-wave-strip {
+  flex: 0 0 100vw;
+  width: 100vw;
+  height: 100%;
+  overflow: visible;
+}
+
+.setup-wave-cluster {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: setup-wave-cluster var(--cluster-duration, 14s) ease-in-out infinite;
+  animation-delay: var(--cluster-delay, 0s);
+}
+
+.setup-wave-cluster.is-delayed {
+  animation-direction: alternate-reverse;
+}
+
+.setup-wave-bar {
+  fill: rgba(248, 240, 227, 0.16);
+}
+
+.setup-wave-bar.is-mid {
+  fill: rgba(248, 240, 227, 0.19);
+}
+
+.setup-wave-bar.is-peak {
+  fill: rgba(245, 158, 11, 0.2);
+}
+
+.setup-wave-pulse-band {
+  position: absolute;
+  inset-block: 20% 20%;
+  left: -2.5rem;
+  width: 2rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(248, 240, 227, 0.18), rgba(245, 158, 11, 0.42), rgba(248, 240, 227, 0.18));
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.1);
+  opacity: 0.4;
+  animation: setup-wave-pulse-travel 9s linear infinite;
+}
+
+.setup-brand {
+  @apply flex items-center gap-4;
+}
+
+.setup-brand-mark {
+  @apply grid size-11 place-items-center rounded-xl bg-ink-800 text-lg font-black text-amber-300;
+  box-shadow: inset 0 0 0 1px rgba(248, 197, 106, 0.18);
+}
+
+.setup-kicker {
+  @apply m-0 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-amber-300;
+}
+
+.setup-brand h1 {
+  @apply m-0 mt-1.5 text-[2rem] font-semibold tracking-tight text-stone-100 sm:text-[2.35rem];
+}
+
+.setup-copy {
+  @apply mb-0 mt-2.5 max-w-3xl text-sm text-stone-300 sm:text-[0.95rem];
+}
+
+.setup-grid {
+  @apply mt-5 grid grid-cols-1 gap-3;
+}
+
+.setup-panel {
+  @apply rounded-2xl border border-ink-700/80 bg-ink-850/92 p-4 sm:p-4;
+}
+
+.setup-panel-heading {
+  @apply flex flex-wrap items-start justify-between gap-3;
+}
+
+.setup-panel-step {
+  @apply m-0 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-stone-400;
+}
+
+.setup-panel-heading h2 {
+  @apply m-0 mt-1.5 text-[1.02rem] font-semibold tracking-tight text-stone-100 sm:text-[1.08rem];
+}
+
+.setup-chip {
+  @apply rounded-full border border-ink-700 bg-ink-900 px-2.5 py-1 font-mono text-[0.68rem] text-stone-300;
+}
+
+.setup-file-picker {
+  @apply mt-3;
+}
+
+.setup-file-picker span {
+  @apply text-xs font-semibold text-stone-300;
+}
+
+.setup-file-picker input {
+  @apply mt-2;
+}
+
+.setup-file-meta {
+  @apply mt-3 grid gap-2.5 rounded-xl border border-ink-700/80 bg-ink-900/85 p-3;
+}
+
+.setup-file-meta div {
+  @apply grid gap-1;
+}
+
+.setup-file-meta dt {
+  @apply font-mono text-[0.68rem] uppercase tracking-[0.16em] text-stone-500;
+}
+
+.setup-file-meta dd {
+  @apply m-0 truncate text-sm text-stone-200;
+}
+
+.setup-panel textarea {
+  @apply min-h-48 rounded-2xl border-ink-700 bg-ink-900 text-stone-100 placeholder:text-stone-600;
+}
+
+.setup-muted {
+  @apply m-0 mt-2.5 text-sm text-stone-400;
+}
+
+.setup-footer {
+  @apply rounded-2xl border border-ink-700/80 bg-ink-850/70 p-4 sm:p-4;
+}
+
+.setup-note {
+  @apply grid gap-1 rounded-xl border border-ink-700/80 bg-ink-900/85 p-2.5;
+}
+
+.setup-note strong {
+  @apply font-mono text-[0.7rem] uppercase tracking-[0.16em] text-amber-300;
+}
+
+.setup-note span {
+  @apply text-sm text-stone-300;
+}
+
+.setup-feedback {
+  @apply mb-0 mt-3 rounded-xl border px-3 py-2 text-sm;
+}
+
+.setup-feedback-warning {
+  @apply border-yellow-400/40 bg-yellow-400/10 text-yellow-100;
+}
+
+.setup-feedback-error {
+  @apply border-rose-400/40 bg-rose-400/10 text-rose-100;
+}
+
+.setup-actions {
+  @apply mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end;
+}
+
+.setup-secondary-button {
+  @apply min-h-11 border-ink-700 bg-ink-800 px-4 text-stone-100;
+}
+
+.setup-secondary-button:hover:not(:disabled) {
+  @apply border-stone-500 text-stone-100;
+}
+
+.setup-primary-button {
+  @apply min-h-11 border-amber-400/55 bg-amber-400 px-5 text-ink-950 shadow-[0_0_24px_rgba(245,158,11,0.18)];
+}
+
+.setup-primary-button:hover:not(:disabled) {
+  @apply border-amber-300 bg-amber-300 text-ink-950;
+}
+
+@keyframes setup-wave-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes setup-wave-cluster {
+  0%,
+  100% {
+    transform: scaleY(var(--cluster-scale-min, 0.92));
+  }
+  38% {
+    transform: scaleY(var(--cluster-scale-max, 1.16));
+  }
+  68% {
+    transform: scaleY(calc((var(--cluster-scale-min, 0.92) + var(--cluster-scale-max, 1.16)) / 2));
+  }
+}
+
+@keyframes setup-wave-pulse-travel {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(100vw + 320px));
+  }
 }
 
 .app-header {
@@ -625,6 +872,16 @@ input[type="range"]::-webkit-slider-thumb {
 
   .inspector-panel {
     @apply col-start-2;
+  }
+}
+
+@media (min-width: 960px) {
+  .setup-grid {
+    grid-template-columns: minmax(18rem, 0.95fr) minmax(22rem, 1.05fr);
+  }
+
+  .setup-footer {
+    grid-column: 1 / -1;
   }
 }
 

@@ -4,6 +4,7 @@ import { CaptureWorkspace } from './components/CaptureWorkspace';
 import { ImportPanel } from './components/ImportPanel';
 import { LyricsPanel } from './components/LyricsPanel';
 import { SegmentInspector } from './components/SegmentInspector';
+import { TrackSetupScreen } from './components/TrackSetupScreen';
 import {
   createEditorState,
   editorReducer,
@@ -77,7 +78,7 @@ export default function App() {
   const fetchAbortRef = useRef<AbortController | null>(null);
   const [seededError, setSeededError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [sourceLoading, setSourceLoading] = useState<'seeded' | 'local' | null>('seeded');
+  const [sourceLoading, setSourceLoading] = useState<'seeded' | 'local' | null>(null);
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null);
   const [dragPreviewSegments, setDragPreviewSegments] = useState<DragPreview>(null);
   const [linePlacementPreview, setLinePlacementPreview] = useState<LinePlacementPreview>(null);
@@ -166,17 +167,18 @@ export default function App() {
     }
   }, [beginAttempt, offerCandidate, prepareSource]);
 
-  useEffect(() => {
-    void loadSeeded();
-    return () => {
+  useEffect(
+    () => () => {
       attemptRef.current += 1;
       fetchAbortRef.current?.abort();
       cancelPreparedSource();
-    };
-  }, [cancelPreparedSource, loadSeeded]);
+    },
+    [cancelPreparedSource],
+  );
 
   const handleImport = useCallback(
     async (file: File, lyrics: string) => {
+      setSeededError(null);
       setImportError(null);
       const parsed = parsePastedLyrics(lyrics);
       if (!parsed.ok) {
@@ -440,10 +442,24 @@ export default function App() {
     ? getPlayingLineId(editor, playback.currentTimeMs)
     : null;
 
+  if (!editor) {
+    return (
+      <div className="setup-app-shell">
+        <audio ref={audioRef} preload="metadata" className="sr-only" />
+        <TrackSetupScreen
+          isLoading={sourceLoading}
+          importError={importError}
+          seededError={seededError}
+          onImport={(file, lyrics) => void handleImport(file, lyrics)}
+          onTrySample={() => void loadSeeded()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <audio ref={audioRef} preload="metadata" className="sr-only" />
-
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">V</span>
@@ -498,58 +514,52 @@ export default function App() {
         onCancelReplacement={cancelReplacement}
       />
 
-      {editor ? (
-        <div className="editor-grid">
-          <LyricsPanel
-            editor={editor}
-            playingLineId={playingLineId}
-            activePlacementLineId={linePlacementPreview?.lineId ?? null}
-            onSelect={(lineId) => dispatch({ type: 'select', lineId })}
-            onStartPlacementDrag={beginPlacementDrag}
-            onPlacementDragLostPointerCapture={(pointerId) => {
-              if (linePlacementPreviewRef.current?.pointerId === pointerId) {
-                cancelPlacementDrag();
-              }
-            }}
-          />
-          <CaptureWorkspace
-            editor={editor}
-            dragPreviewSegments={dragPreviewSegments}
-            linePlacementPreview={linePlacementPreview}
-            currentTimeMs={playback.currentTimeMs}
-            isPlaying={playback.isPlaying}
-            isReady={playback.isReady}
-            playbackError={playback.error}
-            onSelectSegment={(lineId: string) => dispatch({ type: 'inspect', lineId })}
-            onPreviewSegmentDrag={(segments: CompletedSegment[]) =>
-              setDragPreviewSegments(segments)
+      <div className="editor-grid">
+        <LyricsPanel
+          editor={editor}
+          playingLineId={playingLineId}
+          activePlacementLineId={linePlacementPreview?.lineId ?? null}
+          onSelect={(lineId) => dispatch({ type: 'select', lineId })}
+          onStartPlacementDrag={beginPlacementDrag}
+          onPlacementDragLostPointerCapture={(pointerId) => {
+            if (linePlacementPreviewRef.current?.pointerId === pointerId) {
+              cancelPlacementDrag();
             }
-            onCommitSegmentDrag={(segments: CompletedSegment[]) => {
-              setDragPreviewSegments(null);
-              dispatch({ type: 'editSegments', segments });
-            }}
-            onCancelSegmentDrag={() => setDragPreviewSegments(null)}
-            onTimelineLaneMetricsChange={(metrics) => {
-              timelineLaneMetricsRef.current = metrics;
-            }}
-            onTogglePlayback={() => void togglePlayback()}
-            onSeek={seek}
-            onStamp={stamp}
-            onFinish={finish}
-          />
-          <SegmentInspector
-            editor={editor}
-            dragPreviewSegments={dragPreviewSegments}
-            onApply={(lineId, startMs, endMs) =>
-              dispatch({ type: 'editSegment', lineId, startMs, endMs })
-            }
-          />
-        </div>
-      ) : (
-        <section className="empty-state" aria-live="polite">
-          <p>{sourceLoading === 'seeded' ? 'Loading the seeded track…' : 'Load audio and lyrics to begin.'}</p>
-        </section>
-      )}
+          }}
+        />
+        <CaptureWorkspace
+          editor={editor}
+          dragPreviewSegments={dragPreviewSegments}
+          linePlacementPreview={linePlacementPreview}
+          currentTimeMs={playback.currentTimeMs}
+          isPlaying={playback.isPlaying}
+          isReady={playback.isReady}
+          playbackError={playback.error}
+          onSelectSegment={(lineId: string) => dispatch({ type: 'inspect', lineId })}
+          onPreviewSegmentDrag={(segments: CompletedSegment[]) =>
+            setDragPreviewSegments(segments)
+          }
+          onCommitSegmentDrag={(segments: CompletedSegment[]) => {
+            setDragPreviewSegments(null);
+            dispatch({ type: 'editSegments', segments });
+          }}
+          onCancelSegmentDrag={() => setDragPreviewSegments(null)}
+          onTimelineLaneMetricsChange={(metrics) => {
+            timelineLaneMetricsRef.current = metrics;
+          }}
+          onTogglePlayback={() => void togglePlayback()}
+          onSeek={seek}
+          onStamp={stamp}
+          onFinish={finish}
+        />
+        <SegmentInspector
+          editor={editor}
+          dragPreviewSegments={dragPreviewSegments}
+          onApply={(lineId, startMs, endMs) =>
+            dispatch({ type: 'editSegment', lineId, startMs, endMs })
+          }
+        />
+      </div>
     </div>
   );
 }
