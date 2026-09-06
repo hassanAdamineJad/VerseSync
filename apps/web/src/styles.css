@@ -376,7 +376,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .timeline-segment {
-  @apply absolute top-3 flex min-h-11 items-center overflow-hidden rounded-md border border-cyan-400/35 bg-cyan-400/12 px-1.5 py-1 text-left shadow-[0_8px_20px_rgba(0,0,0,0.15)];
+  @apply absolute top-3 flex min-h-11 touch-none items-center overflow-hidden rounded-md border border-cyan-400/35 bg-cyan-400/12 px-1.5 py-1 text-left shadow-[0_8px_20px_rgba(0,0,0,0.15)];
+  cursor: grab;
 }
 
 .timeline-segment[data-selected] {
@@ -385,6 +386,10 @@ input[type="range"]::-webkit-slider-thumb {
 
 .timeline-segment[data-playing] {
   @apply bg-cyan-400/20;
+}
+
+.timeline-segment[data-dragging] {
+  cursor: grabbing;
 }
 
 .timeline-segment-label {

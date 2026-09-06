@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatTime, type EditorState } from '../editor';
+import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 
 type Props = {
   editor: EditorState;
+  dragPreview: CompletedSegment | null;
   currentTimeMs: number;
   onSelectSegment: (lineId: string) => void;
+  onPreviewSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
+  onCommitSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
+  onCancelSegmentDrag: () => void;
 };
 
 type WaveformState = {
@@ -180,8 +184,29 @@ function sampleVisiblePeaks(
   return visiblePeaks;
 }
 
-export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Props) {
+type DragState = {
+  pointerId: number;
+  lineId: string;
+  startClientX: number;
+  windowDurationMs: number;
+  originalStartMs: number;
+  durationMs: number;
+  hasDragged: boolean;
+};
+
+const DRAG_START_THRESHOLD_PX = 3;
+
+export function TimelineOverview({
+  editor,
+  dragPreview,
+  currentTimeMs,
+  onSelectSegment,
+  onPreviewSegmentDrag,
+  onCommitSegmentDrag,
+  onCancelSegmentDrag,
+}: Props) {
   const laneRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<DragState | null>(null);
   const durationMs = editor.document.durationMs;
   const audioUrl = editor.document.source.audioUrl;
   const { peaks, error } = useWaveformPeaks(audioUrl);
@@ -261,10 +286,14 @@ export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Pro
     () =>
       timedSegments
         .map(({ line, segment }) => {
-          if (segment.endMs <= visibleStartMs || segment.startMs >= visibleEndMs) return null;
+          const previewSegment =
+            dragPreview?.lineId === line.id ? dragPreview : segment;
+          if (previewSegment.endMs <= visibleStartMs || previewSegment.startMs >= visibleEndMs) {
+            return null;
+          }
 
-          const clippedStartMs = Math.max(segment.startMs, visibleStartMs);
-          const clippedEndMs = Math.min(segment.endMs, visibleEndMs);
+          const clippedStartMs = Math.max(previewSegment.startMs, visibleStartMs);
+          const clippedEndMs = Math.min(previewSegment.endMs, visibleEndMs);
           const left = toWindowPercent(clippedStartMs, visibleStartMs, visibleWindowMs);
           const width =
             toWindowPercent(clippedEndMs, visibleStartMs, visibleWindowMs) - left;
@@ -274,7 +303,7 @@ export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Pro
 
           return {
             line,
-            segment,
+            segment: previewSegment,
             left,
             width,
             labelMode,
@@ -286,6 +315,7 @@ export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Pro
         .filter((entry): entry is NonNullable<typeof entry> => entry != null),
     [
       currentTimeMs,
+      dragPreview,
       editor.selectedLineId,
       timedSegments,
       visibleEndMs,
@@ -300,6 +330,23 @@ export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Pro
   const currentWindowLabel =
     windowPreset === 'full' ? 'Full track' : `${windowPreset} seconds`;
   const navigationMaxMs = Math.max(0, durationMs - Math.min(requestedWindowMs, durationMs));
+
+  const updateDraggedSegment = (
+    lineId: string,
+    deltaClientX: number,
+    dragState: DragState,
+  ) => {
+    const laneWidth = laneWidthPx || 1;
+    const deltaMs = Math.round((deltaClientX / laneWidth) * dragState.windowDurationMs);
+    const maxStartMs = Math.max(0, durationMs - dragState.durationMs);
+    const startMs = Math.min(
+      Math.max(0, dragState.originalStartMs + deltaMs),
+      maxStartMs,
+    );
+    const endMs = startMs + dragState.durationMs;
+    onPreviewSegmentDrag(lineId, startMs, endMs);
+    return { startMs, endMs };
+  };
 
   return (
     <section className="timeline-card" aria-labelledby="timeline-title">
@@ -379,6 +426,7 @@ export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Pro
                   className="timeline-segment"
                   data-selected={isSelected || undefined}
                   data-playing={isPlaying || undefined}
+                  data-dragging={dragStateRef.current?.lineId === line.id || undefined}
                   style={{
                     left: `${left}%`,
                     width: `${Math.max(width, 0)}%`,
@@ -386,6 +434,85 @@ export function TimelineOverview({ editor, currentTimeMs, onSelectSegment }: Pro
                   title={`${line.text}\n${formatTime(segment.startMs)} - ${formatTime(segment.endMs)}`}
                   aria-label={`${line.text} from ${formatTime(segment.startMs)} to ${formatTime(segment.endMs)}`}
                   onClick={() => onSelectSegment(line.id)}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+
+                    dragStateRef.current = {
+                      pointerId: event.pointerId,
+                      lineId: line.id,
+                      startClientX: event.clientX,
+                      windowDurationMs: visibleWindowMs,
+                      originalStartMs: segment.startMs,
+                      durationMs: segment.endMs - segment.startMs,
+                      hasDragged: false,
+                    };
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  }}
+                  onPointerMove={(event) => {
+                    const dragState = dragStateRef.current;
+                    if (
+                      !dragState ||
+                      dragState.pointerId !== event.pointerId ||
+                      dragState.lineId !== line.id
+                    ) {
+                      return;
+                    }
+
+                    const deltaClientX = event.clientX - dragState.startClientX;
+                    if (!dragState.hasDragged) {
+                      if (Math.abs(deltaClientX) < DRAG_START_THRESHOLD_PX) return;
+                      dragState.hasDragged = true;
+                      setFollowPlayhead(false);
+                      setManualWindowStartMs(visibleStartMs);
+                      onSelectSegment(line.id);
+                      onPreviewSegmentDrag(line.id, segment.startMs, segment.endMs);
+                    }
+
+                    updateDraggedSegment(
+                      line.id,
+                      deltaClientX,
+                      dragState,
+                    );
+                  }}
+                  onPointerUp={(event) => {
+                    const dragState = dragStateRef.current;
+                    if (
+                      !dragState ||
+                      dragState.pointerId !== event.pointerId ||
+                      dragState.lineId !== line.id
+                    ) {
+                      return;
+                    }
+
+                    if (!dragState.hasDragged) {
+                      dragStateRef.current = null;
+                      event.currentTarget.releasePointerCapture(event.pointerId);
+                      return;
+                    }
+
+                    const nextSegment = updateDraggedSegment(
+                      line.id,
+                      event.clientX - dragState.startClientX,
+                      dragState,
+                    );
+                    dragStateRef.current = null;
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                    onCommitSegmentDrag(line.id, nextSegment.startMs, nextSegment.endMs);
+                  }}
+                  onPointerCancel={(event) => {
+                    const dragState = dragStateRef.current;
+                    if (
+                      !dragState ||
+                      dragState.pointerId !== event.pointerId ||
+                      dragState.lineId !== line.id
+                    ) {
+                      return;
+                    }
+
+                    dragStateRef.current = null;
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                    if (dragState.hasDragged) onCancelSegmentDrag();
+                  }}
                 >
                   {labelMode === 'lyric' ? (
                     <>

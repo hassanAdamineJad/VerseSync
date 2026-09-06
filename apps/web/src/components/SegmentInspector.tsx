@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { formatTime, type EditorState } from '../editor';
+import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 
 type Props = {
   editor: EditorState;
+  dragPreview: CompletedSegment | null;
   onApply: (lineId: string, startMs: number, endMs: number) => void;
 };
 
-export function SegmentInspector({ editor, onApply }: Props) {
+export function SegmentInspector({ editor, dragPreview, onApply }: Props) {
   const selectedLine = editor.document.lines.find(
     (line) => line.id === editor.selectedLineId,
   );
-  const segment = selectedLine ? editor.segments[selectedLine.id] : undefined;
+  const segment = selectedLine
+    ? dragPreview?.lineId === selectedLine.id
+      ? dragPreview
+      : editor.segments[selectedLine.id]
+    : undefined;
   const isOpen = selectedLine?.id === editor.openSegment?.lineId;
   const [startDraft, setStartDraft] = useState('');
   const [endDraft, setEndDraft] = useState('');

@@ -1,14 +1,18 @@
 import { useEffect } from 'react';
-import { formatTime, type EditorState } from '../editor';
+import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 import { TimelineOverview } from './TimelineOverview';
 
 type Props = {
   editor: EditorState;
+  dragPreview: CompletedSegment | null;
   currentTimeMs: number;
   isPlaying: boolean;
   isReady: boolean;
   playbackError: string | null;
   onSelectSegment: (lineId: string) => void;
+  onPreviewSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
+  onCommitSegmentDrag: (lineId: string, startMs: number, endMs: number) => void;
+  onCancelSegmentDrag: () => void;
   onTogglePlayback: () => void;
   onSeek: (milliseconds: number) => void;
   onStamp: () => void;
@@ -24,11 +28,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export function CaptureWorkspace({
   editor,
+  dragPreview,
   currentTimeMs,
   isPlaying,
   isReady,
   playbackError,
   onSelectSegment,
+  onPreviewSegmentDrag,
+  onCommitSegmentDrag,
+  onCancelSegmentDrag,
   onTogglePlayback,
   onSeek,
   onStamp,
@@ -126,8 +134,12 @@ export function CaptureWorkspace({
 
       <TimelineOverview
         editor={editor}
+        dragPreview={dragPreview}
         currentTimeMs={currentTimeMs}
         onSelectSegment={onSelectSegment}
+        onPreviewSegmentDrag={onPreviewSegmentDrag}
+        onCommitSegmentDrag={onCommitSegmentDrag}
+        onCancelSegmentDrag={onCancelSegmentDrag}
       />
 
       <section className="capture-card" aria-labelledby="capture-title">
