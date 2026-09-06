@@ -6,6 +6,14 @@
 - Record only meaningful decisions made or materially influenced by the agent.
 - For each decision, record the context, choice, rationale, rejected alternatives, and consequences.
 
+### Decision-log completion check
+
+- Before reporting any task as complete, evaluate whether the work introduced or materially changed an agent-influenced decision.
+- If it did, update `decisions.md` in the same task.
+- If it did not, explicitly state in the completion report: “No decision-log update was needed.”
+- A prompt that limits the implementation to one feature does not exclude required documentation updates.
+- Do not create entries for routine styling changes, minor thresholds, or straightforward implementation details.
+
 ## Product and domain constraints
 
 - Never hardcode the seeded track duration, IDs, title, or 28-line count.

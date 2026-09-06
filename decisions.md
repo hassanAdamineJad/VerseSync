@@ -93,3 +93,19 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** It adds visual timing context without disturbing the established capture workflow or expanding the editor state model.
 - **Rejected alternatives:** Placeholder artwork, hardcoded waveform data, and bundling interactive editing behavior into the first timeline pass.
 - **Consequences:** The timeline depends on browser audio decoding and may show a non-blocking fallback message when waveform extraction is unavailable, while segment placement remains fully data-driven.
+
+### 2026-09-06 — Decision: Keep manual timeline viewport navigation independent from playback position
+
+- **Context:** The timeline gained zoom presets and a separate full-track navigation range, while playback must continue normally and the visible window sometimes needs to stay fixed away from the current playhead.
+- **Choice:** Default the timeline to follow the playhead, but disable follow mode when the user manually moves the navigation range and require an explicit Return to playhead action to restore centered tracking.
+- **Rationale:** It keeps playback transport and timeline browsing decoupled, avoiding accidental seeks or window jumps while still making it obvious how to resume follow behavior.
+- **Rejected alternatives:** Having manual viewport changes seek audio, automatically snapping back to the playhead after interaction, and maintaining follow mode while overriding the window start.
+- **Consequences:** The timeline now owns a local follow/manual viewport state in addition to its zoom preset, and users can inspect a fixed region of the track without affecting playback.
+
+### 2026-09-06 — Decision: Use Pointer Events with transient preview for segment dragging
+
+- **Context:** Single-segment dragging needed live visual and inspector feedback without changing playback, capture state, or persistence behavior, while plain click and keyboard selection still had to work normally.
+- **Choice:** Implement dragging with browser Pointer Events and pointer capture, start an actual drag only after a small movement threshold, show motion through a transient preview, and commit the final timing through the existing `editSegment` reducer path on pointer release.
+- **Rationale:** Pointer capture keeps one drag interaction coherent across movement, the threshold preserves ordinary selection behavior, and the transient preview exposes live timing changes without treating every pointer move as a committed edit.
+- **Rejected alternatives:** Mouse-only dragging, immediate drag activation on pointer down, updating audio playback position during drag, and introducing a separate persistence or reducer action just for timeline drag commits.
+- **Consequences:** Timeline dragging remains a local UI interaction layered on top of the existing timing model, preserves segment duration while clamping within track bounds, and allows overlaps without special-case merge behavior.
