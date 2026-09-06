@@ -1,12 +1,13 @@
 import { useCallback, useReducer, useState } from 'react';
 import { CaptureWorkspace } from './components/CaptureWorkspace';
+import { LinePlacementGhost } from './components/LinePlacementGhost';
 import { LyricsPanel } from './components/LyricsPanel';
 import { SegmentInspector } from './components/SegmentInspector';
 import { TrackSetupScreen } from './components/TrackSetupScreen';
+import { WorkspaceHeader } from './components/WorkspaceHeader';
 import {
   createEditorState,
   editorReducer,
-  formatTime,
   getPlayingLineId,
   type CompletedSegment,
   type EditorAction,
@@ -14,18 +15,13 @@ import {
   type EditorState,
 } from './editor';
 import { useLinePlacementDrag } from './hooks/useLinePlacementDrag';
-import { generateLrc } from './lrc';
+import { downloadLrc } from './lrc';
 import { useTrackSourceFlow } from './hooks/useTrackSourceFlow';
 import {
   useAudioController,
 } from './hooks/useAudioController';
 
 type SessionAction = EditorAction | { type: 'replaceDocument'; document: EditorDocument };
-
-function buildLrcFilename(title: string) {
-  const base = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ');
-  return `${base || 'lyric-alignment'}.lrc`;
-}
 
 function sessionReducer(state: EditorState | null, action: SessionAction): EditorState | null {
   if (action.type === 'replaceDocument') return createEditorState(action.document);
@@ -134,17 +130,7 @@ export default function App() {
   }, [resetWorkspacePreviews]);
   const exportLrc = useCallback(() => {
     if (!editor) return;
-
-    const content = generateLrc(editor);
-    if (!content) return;
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = buildLrcFilename(editor.document.title);
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadLrc(editor);
   }, [editor]);
 
   if (!editor || isChangingTrack) {
@@ -178,87 +164,30 @@ export default function App() {
     <div className="app-shell">
       <audio ref={audioRef} preload="metadata" className="sr-only" />
       <div className="workspace-shell">
-        <header className="app-header">
-          <div className="brand">
-            <span className="brand-mark" aria-hidden="true">V</span>
-            <div className="brand-copy">
-              <span className="brand-name">VerseSync</span>
-              <p className="eyebrow">Lyric timing workspace</p>
-            </div>
-          </div>
-          <div className="toolbar-track">
-            <span className="source-badge">{sourceLabel}</span>
-            <div>
-              <strong>{editor.document.title}</strong>
-              <small>Edits live in this browser session only</small>
-            </div>
-          </div>
-          <div className="toolbar-actions">
-            <div className="toolbar-transport">
-              <div className="toolbar-transport-row">
-                <button
-                  type="button"
-                  className="toolbar-playback-button"
-                  onClick={() => void togglePlayback()}
-                  disabled={!playback.isReady}
-                >
-                  {playback.isPlaying ? 'Pause' : 'Play'}
-                  <kbd>Space</kbd>
-                </button>
-                <div className="toolbar-time">
-                  <span>Playhead</span>
-                  <strong>
-                    {formatTime(playback.currentTimeMs)} / {formatTime(editor.document.durationMs)}
-                  </strong>
-                </div>
-                <button
-                  type="button"
-                  className="toolbar-export-button"
-                  onClick={exportLrc}
-                  disabled={completedSegmentCount === 0}
-                >
-                  Export LRC
-                </button>
-                <button type="button" className="toolbar-change-button" onClick={openTrackSetup}>
-                  Change track
-                </button>
-              </div>
-              <label className="toolbar-seek">
-                <span className="sr-only">Seek through audio</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={editor.document.durationMs}
-                  step={1}
-                  value={Math.min(playback.currentTimeMs, editor.document.durationMs)}
-                  onChange={(event) => seek(Number(event.target.value))}
-                  disabled={!playback.isReady}
-                />
-              </label>
-              {playback.error ? (
-                <p className="toolbar-playback-error" role="alert">
-                  {playback.error}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </header>
+        <WorkspaceHeader
+          trackTitle={editor.document.title}
+          sourceLabel={sourceLabel}
+          currentTimeMs={playback.currentTimeMs}
+          durationMs={editor.document.durationMs}
+          isPlaying={playback.isPlaying}
+          isPlaybackReady={playback.isReady}
+          playbackError={playback.error}
+          exportDisabled={completedSegmentCount === 0}
+          onTogglePlayback={() => void togglePlayback()}
+          onSeek={seek}
+          onExportLrc={exportLrc}
+          onChangeTrack={openTrackSetup}
+        />
 
         {linePlacementPreview?.hasDragged ? (
-          <div
-            className="line-placement-ghost"
-            style={{
-              left: linePlacementPreview.clientX + 12,
-              top: linePlacementPreview.clientY + 12,
-            }}
-          >
-            <span className="line-placement-ghost-index">
-              {String(
-                (editor?.document.lines.find((line) => line.id === linePlacementPreview.lineId)?.index ?? 0) + 1,
-              ).padStart(2, '0')}
-            </span>
-            <span className="line-placement-ghost-text">{linePlacementPreview.text}</span>
-          </div>
+          <LinePlacementGhost
+            lineNumber={String(
+              (editor.document.lines.find((line) => line.id === linePlacementPreview.lineId)?.index ?? 0) + 1,
+            ).padStart(2, '0')}
+            text={linePlacementPreview.text}
+            left={linePlacementPreview.clientX + 12}
+            top={linePlacementPreview.clientY + 12}
+          />
         ) : null}
 
         <div className="editor-grid">

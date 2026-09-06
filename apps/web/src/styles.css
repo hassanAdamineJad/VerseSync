@@ -376,7 +376,7 @@ kbd {
 }
 
 .app-header {
-  @apply sticky top-0 z-20 grid gap-3 rounded-[1.35rem] border border-ink-700/80 bg-ink-900/92 px-4 py-3 backdrop-blur lg:grid-cols-[auto_minmax(0,1fr)_auto];
+  @apply sticky top-0 z-20 grid gap-2.5 rounded-[1.35rem] border border-ink-700/75 bg-ink-900/94 px-4 py-2.5 backdrop-blur xl:grid-cols-[auto_minmax(0,1fr)_auto];
 }
 
 .brand {
@@ -388,12 +388,12 @@ kbd {
 }
 
 .brand-mark {
-  @apply grid size-10 place-items-center rounded-xl bg-ink-800 text-lg font-black text-amber-300;
-  box-shadow: inset 0 0 0 1px rgba(248, 197, 106, 0.18);
+  @apply grid size-9 place-items-center rounded-xl bg-ink-800 text-base font-black text-amber-300;
+  box-shadow: inset 0 0 0 1px rgba(248, 197, 106, 0.16);
 }
 
 .brand-name {
-  @apply text-[1.05rem] font-semibold tracking-tight text-stone-100;
+  @apply text-[1rem] font-semibold tracking-tight text-stone-100;
 }
 
 .eyebrow {
@@ -401,7 +401,7 @@ kbd {
 }
 
 .toolbar-track {
-  @apply flex min-w-0 items-center gap-3 rounded-2xl border border-ink-700/80 bg-ink-850/88 px-3 py-2;
+  @apply flex min-w-0 items-center gap-3 border-l border-ink-700/70 pl-4;
 }
 
 .toolbar-track > div {
@@ -416,20 +416,24 @@ kbd {
   @apply text-xs text-stone-400;
 }
 
+.toolbar-track-meta {
+  @apply flex min-w-0 flex-wrap items-center gap-2;
+}
+
 .toolbar-actions {
-  @apply flex min-w-0 justify-end;
+  @apply flex min-w-0 flex-wrap items-center justify-end gap-3 border-l border-ink-700/70 pl-4;
 }
 
 .toolbar-transport {
-  @apply grid min-w-0 gap-2 rounded-2xl border border-ink-700/80 bg-ink-850/88 px-3 py-2;
+  @apply grid min-w-0 flex-1 gap-1.5;
 }
 
 .toolbar-transport-row {
-  @apply flex min-w-0 flex-wrap items-center justify-end gap-2.5;
+  @apply flex min-w-0 flex-wrap items-center justify-end gap-2;
 }
 
 .toolbar-playback-button {
-  @apply min-h-10 border-amber-400/35 bg-amber-400/10 text-stone-100;
+  @apply min-h-10 border-amber-400/35 bg-amber-400/12 text-stone-100;
 }
 
 .toolbar-playback-button:hover:not(:disabled) {
@@ -437,7 +441,7 @@ kbd {
 }
 
 .toolbar-time {
-  @apply grid min-w-42 gap-0.5 rounded-2xl border border-ink-700/80 bg-ink-850/88 px-3 py-2 text-right;
+  @apply grid min-w-40 gap-0.5 px-1 text-right;
 }
 
 .toolbar-time span {
@@ -449,11 +453,24 @@ kbd {
 }
 
 .toolbar-change-button {
-  @apply min-h-10 border-ink-700/80 bg-ink-900/88 text-stone-200;
+  @apply min-h-9 border-transparent bg-transparent px-3 py-1.5 text-sm text-stone-400 shadow-none;
 }
 
 .toolbar-export-button {
-  @apply min-h-10 border-ink-700/80 bg-ink-900/88 text-stone-200;
+  @apply inline-flex min-h-9 items-center gap-2 border-ink-700/80 bg-ink-900/88 px-3 py-1.5 text-sm text-stone-200;
+}
+
+.toolbar-export-button svg {
+  @apply h-4 w-4 shrink-0;
+}
+
+.toolbar-change-button:hover:not(:disabled),
+.toolbar-change-button:focus-visible {
+  @apply border-ink-700/70 bg-ink-900/75 text-stone-200;
+}
+
+.toolbar-action-buttons {
+  @apply flex flex-wrap items-center justify-end gap-2;
 }
 
 .toolbar-seek {
@@ -500,7 +517,7 @@ kbd {
 .capture-card,
 .timeline-card,
 .inspector-panel {
-  @apply min-w-0 p-4;
+  @apply min-w-0 p-3;
 }
 
 .section-heading {
@@ -534,19 +551,23 @@ kbd {
 }
 
 .editor-grid {
-  @apply mt-4 grid items-start gap-4;
+  @apply mt-3 grid gap-4;
   grid-template-columns: minmax(17rem, 0.88fr) minmax(0, 1.7fr) minmax(16rem, 0.92fr);
   grid-template-areas: "lyrics center inspector";
+  height: calc(100vh - 9.75rem);
+  min-height: 35rem;
 }
 
 .lyrics-panel {
-  @apply flex max-h-[calc(100vh-12.75rem)] flex-col overflow-hidden;
+  @apply flex min-h-0 flex-col overflow-hidden;
   grid-area: lyrics;
+  height: 100%;
 }
 
 .capture-workspace {
-  @apply grid min-w-0 content-start gap-3;
+  @apply grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] gap-2;
   grid-area: center;
+  height: 100%;
 }
 
 .inspector-panel {
@@ -555,7 +576,7 @@ kbd {
 }
 
 .lyric-list {
-  @apply m-0 mt-3 grid list-none gap-2 overflow-y-auto p-0 pr-1;
+  @apply m-0 mt-3 grid min-h-0 list-none gap-2 overflow-y-auto p-0 pr-1;
 }
 
 .lyrics-toolbar {
@@ -563,7 +584,7 @@ kbd {
 }
 
 .lyrics-add-button {
-  @apply min-h-8 px-3 py-1.5 text-xs;
+  @apply inline-flex min-h-8 items-center gap-1.5 px-3 py-1.5 text-xs;
 }
 
 .lyrics-inline-editor {
@@ -663,6 +684,10 @@ kbd {
   @apply border-amber-300/55 bg-amber-400/12 text-amber-100;
 }
 
+.lyric-drag-handle svg {
+  @apply h-4 w-4;
+}
+
 .lyric-drag-spacer {
   @apply block h-7 w-7;
 }
@@ -740,16 +765,6 @@ kbd {
   }
 }
 
-.lyric-drag-grip {
-  @apply block h-5 w-3 rounded-sm opacity-80;
-  background-image:
-    radial-gradient(circle, currentColor 1px, transparent 1.4px),
-    radial-gradient(circle, currentColor 1px, transparent 1.4px);
-  background-position: left top, right top;
-  background-repeat: repeat-y;
-  background-size: 50% 4px;
-}
-
 .lyric-delete-confirmation {
   @apply ml-[1.95rem] grid gap-2 rounded-xl border border-ink-700/70 bg-ink-900/58 px-3 py-2.5;
 }
@@ -806,7 +821,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .timeline-window-copy {
-  @apply mt-1.5 text-xs text-stone-400;
+  @apply mt-1 text-xs text-stone-400;
 }
 
 .timeline-zoom-controls {
@@ -822,7 +837,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .timeline-ruler {
-  @apply relative mt-3 h-8 border-b border-ink-700/80 pt-2.5;
+  @apply relative mt-2 h-7 border-b border-ink-700/80 pt-2;
 }
 
 .timeline-tick {
@@ -835,12 +850,12 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .timeline-surface {
-  @apply relative mt-2 overflow-hidden rounded-xl border border-ink-700/80 bg-ink-900/82;
-  min-height: 14rem;
+  @apply relative mt-1.5 overflow-hidden rounded-xl border border-ink-700/80 bg-ink-900/82;
+  min-height: 12.5rem;
 }
 
 .waveform-band {
-  @apply relative flex h-26 items-center gap-px overflow-hidden border-b border-ink-700/80 px-3 py-3;
+  @apply relative flex h-24 items-center gap-px overflow-hidden border-b border-ink-700/80 px-2.5 py-2.5;
   background-image:
     linear-gradient(to right, rgba(62, 68, 79, 0.28) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(62, 68, 79, 0.16) 1px, transparent 1px);
@@ -852,7 +867,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .segment-lane {
-  @apply relative min-h-32 p-3;
+  @apply relative min-h-28 p-2.5;
   background-image: linear-gradient(to right, rgba(62, 68, 79, 0.18) 1px, transparent 1px);
   background-size: calc(100% / 12) 100%;
 }
@@ -942,7 +957,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .timeline-navigation {
-  @apply mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-ink-700/70 bg-ink-900/55 px-3 py-2.5;
+  @apply mt-1.5 flex flex-wrap items-end gap-2.5 rounded-xl border border-ink-700/70 bg-ink-900/45 px-3 py-1.5;
 }
 
 .timeline-navigation-label {
@@ -970,19 +985,19 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .capture-status h2 {
-  @apply mt-2 max-w-3xl text-[1.35rem] leading-tight sm:text-[1.65rem];
+  @apply mt-1.5 max-w-3xl text-[1.2rem] leading-tight sm:text-[1.45rem];
 }
 
 .capture-start {
-  @apply mt-2.5 inline-block rounded-md bg-ink-950 px-2 py-1 text-amber-200;
+  @apply mt-2 inline-block rounded-md bg-ink-950 px-2 py-1 text-amber-200;
 }
 
 .next-action {
-  @apply mt-3 rounded-xl border border-ink-700/80 bg-ink-900/72 p-3 text-sm text-stone-300;
+  @apply mt-1.5 rounded-xl border border-ink-700/80 bg-ink-900/72 p-2.5 text-sm text-stone-300;
 }
 
 .capture-actions {
-  @apply mt-3 flex-wrap gap-3;
+  @apply mt-2 flex-wrap gap-3;
 }
 
 .primary-action,
@@ -1073,10 +1088,16 @@ input[type="range"]::-webkit-slider-thumb {
 
 @media (max-width: 1100px) {
   .editor-grid {
+    min-height: auto;
     grid-template-columns: minmax(15rem, 0.88fr) minmax(0, 1.42fr);
     grid-template-areas:
       "lyrics center"
       "lyrics inspector";
+  }
+
+  .lyrics-panel,
+  .capture-workspace {
+    height: auto;
   }
 }
 
@@ -1101,7 +1122,7 @@ input[type="range"]::-webkit-slider-thumb {
 
   .toolbar-track,
   .toolbar-actions {
-    @apply w-full justify-start;
+    @apply w-full justify-start border-l-0 pl-0;
   }
 
   .toolbar-transport {
@@ -1113,16 +1134,22 @@ input[type="range"]::-webkit-slider-thumb {
   }
 
   .toolbar-time {
-    @apply min-w-0 flex-1 text-left;
+    @apply min-w-0 flex-1 px-0 text-left;
   }
 
   .editor-grid {
+    min-height: auto;
     @apply gap-3;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "center"
       "lyrics"
       "inspector";
+  }
+
+  .lyrics-panel,
+  .capture-workspace {
+    height: auto;
   }
 
   .timeline-surface {
@@ -1147,6 +1174,10 @@ input[type="range"]::-webkit-slider-thumb {
   .toolbar-transport-row,
   .replace-confirmation {
     @apply flex-col items-stretch;
+  }
+
+  .toolbar-action-buttons {
+    @apply w-full;
   }
 
   .toolbar-time {

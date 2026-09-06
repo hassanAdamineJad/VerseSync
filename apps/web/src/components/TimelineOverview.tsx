@@ -626,8 +626,8 @@ export function TimelineOverview({
       <div className="section-heading timeline-heading">
         <div>
           <p className="eyebrow">Timeline</p>
-          <h2 id="timeline-title">Read-only alignment overview</h2>
-          <p className="timeline-window-copy">Inspect timing without moving playback.</p>
+          <h2 id="timeline-title">Alignment timeline</h2>
+          <p className="timeline-window-copy">Select, place, and adjust lyric timing without seeking playback.</p>
         </div>
         <div className="timeline-header-actions">
           {hasMultiSelection ? (

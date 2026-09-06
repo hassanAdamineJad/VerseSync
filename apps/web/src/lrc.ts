@@ -20,3 +20,26 @@ export function generateLrc(state: EditorState): string {
     .map((entry) => `[${formatTimecode(entry.startMs)}]${entry.text}`)
     .join('\n');
 }
+
+function buildLrcFilename(title: string) {
+  const base = title.trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ');
+  return `${base || 'lyric-alignment'}.lrc`;
+}
+
+export function downloadLrc(state: EditorState): boolean {
+  const content = generateLrc(state);
+  if (!content) return false;
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = buildLrcFilename(state.document.title);
+  anchor.click();
+
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
+
+  return true;
+}

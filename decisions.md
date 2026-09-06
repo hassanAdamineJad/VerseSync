@@ -165,3 +165,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This exports exactly what the user has in memory, preserves repeated and edited lyrics, and keeps LRC generation as a pure domain formatting step rather than a server concern.
 - **Rejected alternatives:** Exporting untimed placeholder entries, relying on backend routes for file creation, and deriving lyric identity from array position or displayed text at export time.
 - **Consequences:** Overlaps and equal timestamps remain valid export cases, untimed lines are omitted, and the UI needs only a guarded client-side download action when timed segments exist.
+
+### 2026-09-06 — Decision: Use Lucide React for repeated action icons
+
+- **Context:** The interface now includes a growing set of repeated action icons across the workspace, including export, delete, add, and drag affordances.
+- **Choice:** Add `lucide-react` and use direct named imports for the needed icons while keeping the existing custom brand mark and avoiding a broader component library.
+- **Rationale:** A consistent maintained icon set is preferable to accumulating handwritten SVG paths, and direct imports keep the dependency scope limited.
+- **Rejected alternatives:** Continuing to add one-off inline SVG paths and introducing a full UI component library just to standardize icons.
+- **Consequences:** Action icons now share one visual source and must stay explicitly named at the import site rather than pulling in an icon namespace.

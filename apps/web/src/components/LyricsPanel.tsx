@@ -5,6 +5,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { Clock3, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { formatTime, type EditorState } from '../editor';
 
 type Props = {
@@ -35,66 +36,6 @@ type EditState = {
   error: string | null;
 } | null;
 type ConfirmDeleteState = { lineId: string; text: string } | null;
-
-function TrashIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path
-        d="M4.5 5.5h11"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M7.5 5.5V4.4c0-.8.6-1.4 1.4-1.4h2.2c.8 0 1.4.6 1.4 1.4v1.1"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M6.2 5.5 7 16.1c.1.8.7 1.4 1.5 1.4h3c.8 0 1.4-.6 1.5-1.4l.8-10.6"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M8.6 8.5v5.1M11.4 8.5v5.1"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </svg>
-  );
-}
-
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <circle
-        cx="10"
-        cy="10"
-        r="7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M10 6.2v4.2l2.9 1.8"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-    </svg>
-  );
-}
 
 function getTrimmedTextError(value: string, verb: 'add' | 'save') {
   return value.trim()
@@ -283,7 +224,8 @@ export function LyricsPanel({
             className="lyrics-add-button"
             onClick={() => setAddPanelState({ value: '', error: null })}
           >
-            + Add line
+            <Plus aria-hidden="true" size={14} strokeWidth={2} />
+            <span>Add line</span>
           </button>
         </div>
       </div>
@@ -389,7 +331,7 @@ export function LyricsPanel({
                         onPlacementDragLostPointerCapture(event.pointerId);
                       }}
                     >
-                      <span className="lyric-drag-grip" aria-hidden="true" />
+                      <GripVertical aria-hidden="true" size={16} strokeWidth={1.9} />
                     </button>
                   ) : (
                     <span className="lyric-drag-spacer" aria-hidden="true" />
@@ -403,7 +345,7 @@ export function LyricsPanel({
                     title={timeChipTitle}
                     onClick={() => onSelect(line.id)}
                   >
-                    <ClockIcon />
+                    <Clock3 aria-hidden="true" size={14} strokeWidth={1.9} />
                     <span
                       className="lyric-time-chip-value"
                       data-empty={segment == null || undefined}
@@ -489,7 +431,7 @@ export function LyricsPanel({
                       }}
                       onClick={() => requestDeleteLine(line.id, line.text, segment != null)}
                     >
-                      <TrashIcon />
+                      <Trash2 aria-hidden="true" size={16} strokeWidth={1.9} />
                     </button>
                   </div>
                 </div>
