@@ -431,6 +431,22 @@ input[type="range"]::-webkit-slider-thumb {
   @apply m-0 flex min-h-full items-center justify-center px-4 py-8 text-center text-sm text-slate-400;
 }
 
+.timeline-placement-guide {
+  @apply pointer-events-none absolute inset-y-3 z-20 w-px border-l border-dashed border-cyan-300;
+}
+
+.timeline-placement-preview {
+  @apply pointer-events-none absolute top-3 z-10 flex min-h-11 items-center overflow-hidden rounded-md border border-dashed border-cyan-300/60 bg-cyan-400/16 px-1.5 py-1 text-[0.68rem] text-cyan-200;
+}
+
+.timeline-placement-preview span {
+  @apply truncate;
+}
+
+.line-placement-ghost {
+  @apply pointer-events-none fixed z-50 max-w-56 truncate rounded-md border border-cyan-300/40 bg-navy-900/95 px-2 py-1 text-xs text-cyan-100 shadow-[0_8px_20px_rgba(0,0,0,0.22)];
+}
+
 .timeline-navigation {
   @apply mt-4 flex flex-wrap items-center gap-3;
 }

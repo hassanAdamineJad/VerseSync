@@ -29,6 +29,22 @@ type PendingCandidate = {
 };
 
 type DragPreview = CompletedSegment[] | null;
+type LinePlacementPreview = {
+  lineId: string;
+  text: string;
+  clientX: number;
+  clientY: number;
+  segment: CompletedSegment | null;
+} | null;
+type TimelineLaneMetrics = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  visibleStartMs: number;
+  visibleWindowMs: number;
+  durationMs: number;
+} | null;
 
 function sessionReducer(state: EditorState | null, action: SessionAction): EditorState | null {
   if (action.type === 'replaceDocument') return createEditorState(action.document);
@@ -53,6 +69,8 @@ export default function App() {
   const [sourceLoading, setSourceLoading] = useState<'seeded' | 'local' | null>('seeded');
   const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null);
   const [dragPreviewSegments, setDragPreviewSegments] = useState<DragPreview>(null);
+  const [linePlacementPreview, setLinePlacementPreview] = useState<LinePlacementPreview>(null);
+  const timelineLaneMetricsRef = useRef<TimelineLaneMetrics>(null);
 
   useEffect(() => {
     editorRef.current = editor;
@@ -79,6 +97,7 @@ export default function App() {
     cancelPreparedSource();
     setPendingCandidate(null);
     setDragPreviewSegments(null);
+    setLinePlacementPreview(null);
     return attemptRef.current;
   }, [cancelPreparedSource]);
 
@@ -175,13 +194,66 @@ export default function App() {
     }
     setPendingCandidate(null);
     setDragPreviewSegments(null);
+    setLinePlacementPreview(null);
   }, [commitSource, pendingCandidate]);
 
   const cancelReplacement = useCallback(() => {
     cancelPreparedSource();
     setPendingCandidate(null);
     setDragPreviewSegments(null);
+    setLinePlacementPreview(null);
   }, [cancelPreparedSource]);
+
+  const updateLinePlacementPreview = useCallback(
+    (lineId: string, text: string, clientX: number, clientY: number) => {
+      const metrics = timelineLaneMetricsRef.current;
+      if (!metrics) {
+        setLinePlacementPreview({ lineId, text, clientX, clientY, segment: null });
+        return;
+      }
+
+      const isInsideLane =
+        clientX >= metrics.left &&
+        clientX <= metrics.right &&
+        clientY >= metrics.top &&
+        clientY <= metrics.bottom;
+
+      if (!isInsideLane) {
+        setLinePlacementPreview({ lineId, text, clientX, clientY, segment: null });
+        return;
+      }
+
+      const ratio =
+        metrics.right === metrics.left
+          ? 0
+          : (clientX - metrics.left) / (metrics.right - metrics.left);
+      const rawStartMs = Math.round(
+        metrics.visibleStartMs + ratio * metrics.visibleWindowMs,
+      );
+      const startMs = Math.min(Math.max(0, rawStartMs), Math.max(0, metrics.durationMs - 1));
+      const endMs = Math.min(startMs + 3000, metrics.durationMs);
+      const segment =
+        endMs > startMs
+          ? { lineId, startMs, endMs }
+          : { lineId, startMs: Math.max(0, metrics.durationMs - 1), endMs: metrics.durationMs };
+
+      setLinePlacementPreview({ lineId, text, clientX, clientY, segment });
+    },
+    [],
+  );
+
+  const commitLinePlacement = useCallback(() => {
+    setLinePlacementPreview((current) => {
+      if (!current?.segment) return null;
+      dispatch({
+        type: 'placeSegment',
+        lineId: current.segment.lineId,
+        startMs: current.segment.startMs,
+        endMs: current.segment.endMs,
+      });
+      return null;
+    });
+  }, []);
 
   const stamp = useCallback(() => {
     dispatch({ type: 'stamp', atMs: readCurrentTimeMs() });
@@ -227,6 +299,18 @@ export default function App() {
         </div>
       )}
 
+      {linePlacementPreview ? (
+        <div
+          className="line-placement-ghost"
+          style={{
+            left: linePlacementPreview.clientX + 12,
+            top: linePlacementPreview.clientY + 12,
+          }}
+        >
+          {linePlacementPreview.text}
+        </div>
+      ) : null}
+
       <ImportPanel
         isLoading={sourceLoading === 'local'}
         error={importError}
@@ -242,10 +326,14 @@ export default function App() {
             editor={editor}
             playingLineId={playingLineId}
             onSelect={(lineId) => dispatch({ type: 'select', lineId })}
+            onPlacementDragMove={updateLinePlacementPreview}
+            onPlacementDragEnd={commitLinePlacement}
+            onPlacementDragCancel={() => setLinePlacementPreview(null)}
           />
           <CaptureWorkspace
             editor={editor}
             dragPreviewSegments={dragPreviewSegments}
+            linePlacementPreview={linePlacementPreview}
             currentTimeMs={playback.currentTimeMs}
             isPlaying={playback.isPlaying}
             isReady={playback.isReady}
@@ -259,6 +347,9 @@ export default function App() {
               dispatch({ type: 'editSegments', segments });
             }}
             onCancelSegmentDrag={() => setDragPreviewSegments(null)}
+            onTimelineLaneMetricsChange={(metrics) => {
+              timelineLaneMetricsRef.current = metrics;
+            }}
             onTogglePlayback={() => void togglePlayback()}
             onSeek={seek}
             onStamp={stamp}

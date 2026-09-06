@@ -117,3 +117,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** A grouped commit keeps the reducer as the single source of truth for the final timing update, avoids transient partial saves when several selected segments move together, and ensures overlap checks and messaging evaluate the final combined state once.
 - **Rejected alternatives:** Dispatching a sequence of individual `editSegment` commits, committing every pointer move as state, and treating group movement as a timeline-only mutation outside the reducer.
 - **Consequences:** Timeline group dragging can update the primary selected segment live in the inspector while still landing as one atomic state change when released.
+
+### 2026-09-06 — Decision: Place untimed lines with a provisional three-second segment independent of capture
+
+- **Context:** Drag-to-place must let an untimed lyric line land on the timeline immediately, even before precise trimming, while preserving the separate one-pass capture workflow and its cursor progression.
+- **Choice:** On a valid drop, create a completed segment at the dropped start time with a provisional default duration of 3000ms, clamped to the track end with at least 1ms duration, and commit it through one atomic `placeSegment` action that does not redirect an open capture flow.
+- **Rationale:** A short provisional segment makes placement useful immediately without guessing exact boundaries, and keeping placement independent from capture avoids surprising changes to the active line while still letting later capture naturally skip newly completed lines.
+- **Rejected alternatives:** Requiring exact start and end selection during placement, choosing duration from lyric text length or waveform heuristics, and mutating selection, segment timing, and capture cursor through separate updates.
+- **Consequences:** Drag-to-place becomes a fast initial placement tool, newly dropped lines open directly in the inspector for correction, and idle capture must advance past a newly completed cursor line when placement filled it in.

@@ -4,11 +4,27 @@ import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 type Props = {
   editor: EditorState;
   dragPreviewSegments: CompletedSegment[] | null;
+  linePlacementPreview: {
+    lineId: string;
+    text: string;
+    clientX: number;
+    clientY: number;
+    segment: CompletedSegment | null;
+  } | null;
   currentTimeMs: number;
   onSelectSegment: (lineId: string) => void;
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
+  onTimelineLaneMetricsChange: (metrics: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    visibleStartMs: number;
+    visibleWindowMs: number;
+    durationMs: number;
+  }) => void;
 };
 
 type WaveformState = {
@@ -201,11 +217,13 @@ const DRAG_START_THRESHOLD_PX = 3;
 export function TimelineOverview({
   editor,
   dragPreviewSegments,
+  linePlacementPreview,
   currentTimeMs,
   onSelectSegment,
   onPreviewSegmentDrag,
   onCommitSegmentDrag,
   onCancelSegmentDrag,
+  onTimelineLaneMetricsChange,
 }: Props) {
   const laneRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
@@ -282,6 +300,12 @@ export function TimelineOverview({
   const selectedLineIdSet = useMemo(() => new Set(selectedLineIds), [selectedLineIds]);
   const primarySelectedLineId = selectedLineIds.at(-1) ?? null;
 
+  useEffect(() => {
+    if (!editor.selectedLineId || !editor.segments[editor.selectedLineId]) return;
+    if (selectedLineIdSet.has(editor.selectedLineId)) return;
+    setSelectedLineIds([editor.selectedLineId]);
+  }, [editor.selectedLineId, editor.segments, selectedLineIdSet]);
+
   const ticks = useMemo(
     () => buildRulerTicks(visibleStartMs, visibleEndMs),
     [visibleEndMs, visibleStartMs],
@@ -334,12 +358,55 @@ export function TimelineOverview({
     ],
   );
   const playheadPercent = toWindowPercent(currentTimeMs, visibleStartMs, visibleWindowMs);
+  const placementPreviewPercent =
+    linePlacementPreview?.segment != null
+      ? toWindowPercent(
+          linePlacementPreview.segment.startMs,
+          visibleStartMs,
+          visibleWindowMs,
+        )
+      : null;
+  const placementPreviewWidthPercent =
+    linePlacementPreview?.segment != null
+      ? toWindowPercent(
+          linePlacementPreview.segment.endMs,
+          visibleStartMs,
+          visibleWindowMs,
+        ) - toWindowPercent(linePlacementPreview.segment.startMs, visibleStartMs, visibleWindowMs)
+      : null;
   const presetIndex = WINDOW_PRESETS.indexOf(windowPreset);
   const canZoomIn = presetIndex > 0;
   const canZoomOut = presetIndex < WINDOW_PRESETS.length - 1;
   const currentWindowLabel =
     windowPreset === 'full' ? 'Full track' : `${windowPreset} seconds`;
   const navigationMaxMs = Math.max(0, durationMs - Math.min(requestedWindowMs, durationMs));
+
+  useEffect(() => {
+    const lane = laneRef.current;
+    if (!lane) return;
+
+    const publishMetrics = () => {
+      const rect = lane.getBoundingClientRect();
+      onTimelineLaneMetricsChange({
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        visibleStartMs,
+        visibleWindowMs,
+        durationMs,
+      });
+    };
+
+    publishMetrics();
+    window.addEventListener('scroll', publishMetrics, true);
+    window.addEventListener('resize', publishMetrics);
+
+    return () => {
+      window.removeEventListener('scroll', publishMetrics, true);
+      window.removeEventListener('resize', publishMetrics);
+    };
+  }, [durationMs, onTimelineLaneMetricsChange, visibleStartMs, visibleWindowMs]);
 
   const getDraggedSegment = (deltaClientX: number, dragState: DragState) => {
     const laneWidth = laneWidthPx || 1;
@@ -500,6 +567,25 @@ export function TimelineOverview({
         </div>
 
         <div ref={laneRef} className="segment-lane" aria-label="Timed lyric segments">
+          {linePlacementPreview?.segment && placementPreviewPercent != null && placementPreviewWidthPercent != null ? (
+            <>
+              <div
+                className="timeline-placement-guide"
+                style={{ left: `${Math.min(Math.max(placementPreviewPercent, 0), 100)}%` }}
+                aria-hidden="true"
+              />
+              <div
+                className="timeline-placement-preview"
+                style={{
+                  left: `${placementPreviewPercent}%`,
+                  width: `${Math.max(placementPreviewWidthPercent, 0.2)}%`,
+                }}
+                title={`${linePlacementPreview.text}\n${formatTime(linePlacementPreview.segment.startMs)} - ${formatTime(linePlacementPreview.segment.endMs)}`}
+              >
+                <span>{linePlacementPreview.text}</span>
+              </div>
+            </>
+          ) : null}
           {visibleSegments.length > 0 ? (
             visibleSegments.map(
               ({ line, segment, left, width, labelMode, isSelected, isPrimarySelected, isPlaying }) => {

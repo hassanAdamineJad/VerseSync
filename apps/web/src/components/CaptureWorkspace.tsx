@@ -2,9 +2,28 @@ import { useEffect } from 'react';
 import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 import { TimelineOverview } from './TimelineOverview';
 
+type LinePlacementPreview = {
+  lineId: string;
+  text: string;
+  clientX: number;
+  clientY: number;
+  segment: CompletedSegment | null;
+} | null;
+
+type TimelineLaneMetrics = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  visibleStartMs: number;
+  visibleWindowMs: number;
+  durationMs: number;
+};
+
 type Props = {
   editor: EditorState;
   dragPreviewSegments: CompletedSegment[] | null;
+  linePlacementPreview: LinePlacementPreview;
   currentTimeMs: number;
   isPlaying: boolean;
   isReady: boolean;
@@ -13,6 +32,7 @@ type Props = {
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
+  onTimelineLaneMetricsChange: (metrics: TimelineLaneMetrics) => void;
   onTogglePlayback: () => void;
   onSeek: (milliseconds: number) => void;
   onStamp: () => void;
@@ -29,6 +49,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 export function CaptureWorkspace({
   editor,
   dragPreviewSegments,
+  linePlacementPreview,
   currentTimeMs,
   isPlaying,
   isReady,
@@ -37,6 +58,7 @@ export function CaptureWorkspace({
   onPreviewSegmentDrag,
   onCommitSegmentDrag,
   onCancelSegmentDrag,
+  onTimelineLaneMetricsChange,
   onTogglePlayback,
   onSeek,
   onStamp,
@@ -135,11 +157,13 @@ export function CaptureWorkspace({
       <TimelineOverview
         editor={editor}
         dragPreviewSegments={dragPreviewSegments}
+        linePlacementPreview={linePlacementPreview}
         currentTimeMs={currentTimeMs}
         onSelectSegment={onSelectSegment}
         onPreviewSegmentDrag={onPreviewSegmentDrag}
         onCommitSegmentDrag={onCommitSegmentDrag}
         onCancelSegmentDrag={onCancelSegmentDrag}
+        onTimelineLaneMetricsChange={onTimelineLaneMetricsChange}
       />
 
       <section className="capture-card" aria-labelledby="capture-title">

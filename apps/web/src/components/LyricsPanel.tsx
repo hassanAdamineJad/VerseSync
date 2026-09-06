@@ -5,11 +5,39 @@ type Props = {
   editor: EditorState;
   playingLineId: string | null;
   onSelect: (lineId: string) => void;
+  onPlacementDragMove: (
+    lineId: string,
+    text: string,
+    clientX: number,
+    clientY: number,
+  ) => void;
+  onPlacementDragEnd: () => void;
+  onPlacementDragCancel: () => void;
 };
 
-export function LyricsPanel({ editor, playingLineId, onSelect }: Props) {
+type PlacementDragState = {
+  pointerId: number;
+  lineId: string;
+  text: string;
+  startClientX: number;
+  startClientY: number;
+  hasDragged: boolean;
+};
+
+const PLACEMENT_DRAG_THRESHOLD_PX = 4;
+
+export function LyricsPanel({
+  editor,
+  playingLineId,
+  onSelect,
+  onPlacementDragMove,
+  onPlacementDragEnd,
+  onPlacementDragCancel,
+}: Props) {
   const listRef = useRef<HTMLOListElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const placementDragRef = useRef<PlacementDragState | null>(null);
+  const suppressClickLineIdRef = useRef<string | null>(null);
   const completedCount = Object.keys(editor.segments).length;
   const activeCaptureLineId = editor.openSegment?.lineId ?? null;
 
@@ -70,7 +98,82 @@ export function LyricsPanel({ editor, playingLineId, onSelect }: Props) {
                 data-playing={isPlaying || undefined}
                 data-capturing={isOpen || undefined}
                 aria-pressed={isSelected}
-                onClick={() => onSelect(line.id)}
+                onClick={() => {
+                  if (suppressClickLineIdRef.current === line.id) {
+                    suppressClickLineIdRef.current = null;
+                    return;
+                  }
+                  onSelect(line.id);
+                }}
+                onPointerDown={(event) => {
+                  if (event.button !== 0 || segment || isOpen) return;
+                  placementDragRef.current = {
+                    pointerId: event.pointerId,
+                    lineId: line.id,
+                    text: line.text,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    hasDragged: false,
+                  };
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={(event) => {
+                  const dragState = placementDragRef.current;
+                  if (
+                    !dragState ||
+                    dragState.pointerId !== event.pointerId ||
+                    dragState.lineId !== line.id
+                  ) {
+                    return;
+                  }
+
+                  const deltaX = event.clientX - dragState.startClientX;
+                  const deltaY = event.clientY - dragState.startClientY;
+                  if (!dragState.hasDragged) {
+                    if (Math.hypot(deltaX, deltaY) < PLACEMENT_DRAG_THRESHOLD_PX) return;
+                    dragState.hasDragged = true;
+                  }
+
+                  onPlacementDragMove(
+                    dragState.lineId,
+                    dragState.text,
+                    event.clientX,
+                    event.clientY,
+                  );
+                }}
+                onPointerUp={(event) => {
+                  const dragState = placementDragRef.current;
+                  if (
+                    !dragState ||
+                    dragState.pointerId !== event.pointerId ||
+                    dragState.lineId !== line.id
+                  ) {
+                    return;
+                  }
+
+                  placementDragRef.current = null;
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                  if (!dragState.hasDragged) return;
+                  suppressClickLineIdRef.current = line.id;
+                  onPlacementDragEnd();
+                }}
+                onPointerCancel={(event) => {
+                  const dragState = placementDragRef.current;
+                  if (
+                    !dragState ||
+                    dragState.pointerId !== event.pointerId ||
+                    dragState.lineId !== line.id
+                  ) {
+                    return;
+                  }
+
+                  placementDragRef.current = null;
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                  if (dragState.hasDragged) {
+                    suppressClickLineIdRef.current = line.id;
+                    onPlacementDragCancel();
+                  }
+                }}
               >
                 <span className="lyric-index">{String(line.index + 1).padStart(2, '0')}</span>
                 <span className="lyric-copy">

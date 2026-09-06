@@ -55,6 +55,7 @@ export type EditorAction =
   | { type: 'stamp'; atMs: number }
   | { type: 'finish'; atMs: number }
   | { type: 'mediaEnded'; durationMs: number }
+  | { type: 'placeSegment'; lineId: string; startMs: number; endMs: number }
   | { type: 'editSegment'; lineId: string; startMs: number; endMs: number }
   | { type: 'editSegments'; segments: CompletedSegment[] }
   | { type: 'clearMessage' };
@@ -152,6 +153,13 @@ function nextUntimedLineId(
       .slice(lineIndex + 1)
       .find((line) => segments[line.id] == null)?.id ?? null
   );
+}
+
+function firstUntimedLineId(
+  state: EditorState,
+  segments: Record<string, CompletedSegment>,
+): string | null {
+  return state.document.lines.find((line) => segments[line.id] == null)?.id ?? null;
 }
 
 function invalidCloseMessage(startMs: number): string {
@@ -252,6 +260,50 @@ function finish(state: EditorState, atMs: number): EditorState {
   };
 }
 
+function placeSegment(
+  state: EditorState,
+  lineId: string,
+  startMs: number,
+  endMs: number,
+): EditorState {
+  if (state.openSegment?.lineId === lineId) {
+    return { ...state, message: 'Finish the capturing line before placing it on the timeline.' };
+  }
+  if (state.segments[lineId]) {
+    return { ...state, message: 'That line is already timed.' };
+  }
+  if (
+    !Number.isInteger(startMs) ||
+    !Number.isInteger(endMs) ||
+    startMs < 0 ||
+    endMs > state.document.durationMs ||
+    endMs <= startMs
+  ) {
+    return {
+      ...state,
+      message: `Use whole milliseconds between 0 and ${state.document.durationMs}, with end later than start.`,
+    };
+  }
+
+  const segments = {
+    ...state.segments,
+    [lineId]: { lineId, startMs, endMs },
+  };
+  const captureCursorLineId =
+    state.captureCursorLineId === lineId
+      ? nextUntimedLineId(state, lineId, segments) ?? firstUntimedLineId(state, segments)
+      : state.captureCursorLineId;
+
+  return {
+    ...state,
+    segments,
+    selectedLineId: lineId,
+    captureCursorLineId,
+    message: null,
+    dirty: true,
+  };
+}
+
 function mediaEnded(state: EditorState, durationMs: number): EditorState {
   if (!state.openSegment) return state;
   const endMs = Math.min(durationMs, state.document.durationMs);
@@ -347,6 +399,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return finish(state, action.atMs);
     case 'mediaEnded':
       return mediaEnded(state, action.durationMs);
+    case 'placeSegment':
+      return placeSegment(state, action.lineId, action.startMs, action.endMs);
     case 'editSegment':
       return editSegment(state, action.lineId, action.startMs, action.endMs);
     case 'editSegments':
