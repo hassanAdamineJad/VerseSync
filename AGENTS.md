@@ -26,6 +26,7 @@
 ## Relevant guide
 
 - Before substantial React, TypeScript, timeline-interaction, error-handling, or testing work, read `docs/agent-guide.md`.
+- For intentional UI creation or visual-polish tasks, use the project-local `frontend-design` skill only when its guidance will still preserve the existing product brief, behavior, and design constraints.
 - Do not apply guide sections unrelated to the requested task.
 
 ## Decision log
