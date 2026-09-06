@@ -1,39 +1,265 @@
-import { useEffect, useState } from 'react';
-import { api, ApiError } from './api';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { ApiError, getSeededTrack } from './api';
+import { CaptureWorkspace } from './components/CaptureWorkspace';
+import { ImportPanel } from './components/ImportPanel';
+import { LyricsPanel } from './components/LyricsPanel';
+import { SegmentInspector } from './components/SegmentInspector';
+import {
+  createEditorState,
+  editorReducer,
+  getPlayingLineId,
+  normalizeLocalTrack,
+  normalizeSeededTrack,
+  parsePastedLyrics,
+  type EditorAction,
+  type EditorDocument,
+  type EditorState,
+} from './editor';
+import {
+  useAudioController,
+  type PreparedAudioSource,
+} from './useAudioController';
 
-/**
- * Deliberately partial. These are the only fields this placeholder reads; the
- * payload has a good deal more in it. Type the rest as you need it.
- */
-type Track = {
-  title: string;
-  audio_url: string;
-  lines: unknown[];
+type SessionAction = EditorAction | { type: 'replaceDocument'; document: EditorDocument };
+
+type PendingCandidate = {
+  document: EditorDocument;
+  audio: PreparedAudioSource;
 };
 
+function sessionReducer(state: EditorState | null, action: SessionAction): EditorState | null {
+  if (action.type === 'replaceDocument') return createEditorState(action.document);
+  return state ? editorReducer(state, action) : state;
+}
+
+function sourceError(error: unknown): string {
+  if (error instanceof ApiError) {
+    return `The seeded track could not be loaded (${error.status}). You can retry or load a local file.`;
+  }
+  if (error instanceof Error) return error.message;
+  return 'The source could not be loaded.';
+}
+
 export default function App() {
-  const [track, setTrack] = useState<Track | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [editor, dispatch] = useReducer(sessionReducer, null);
+  const editorRef = useRef(editor);
+  const attemptRef = useRef(0);
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  const [seededError, setSeededError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [sourceLoading, setSourceLoading] = useState<'seeded' | 'local' | null>('seeded');
+  const [pendingCandidate, setPendingCandidate] = useState<PendingCandidate | null>(null);
 
   useEffect(() => {
-    let live = true;
-    api<Track>('/api/v1/track')
-      .then((t) => { if (live) setTrack(t); })
-      .catch((e: unknown) => {
-        if (!live) return;
-        setError(e instanceof ApiError ? `${e.message} ${JSON.stringify(e.body)}` : String(e));
-      });
-    return () => { live = false; };
+    editorRef.current = editor;
+  }, [editor]);
+
+  const handleMediaEnded = useCallback((durationMs: number) => {
+    dispatch({ type: 'mediaEnded', durationMs });
   }, []);
 
-  if (error) return <p>{error}</p>;
-  if (!track) return <p>Loading…</p>;
+  const {
+    audioRef,
+    playback,
+    prepareSource,
+    commitSource,
+    cancelPreparedSource,
+    readCurrentTimeMs,
+    togglePlayback,
+    seek,
+  } = useAudioController(handleMediaEnded);
+
+  const beginAttempt = useCallback(() => {
+    attemptRef.current += 1;
+    fetchAbortRef.current?.abort();
+    cancelPreparedSource();
+    setPendingCandidate(null);
+    return attemptRef.current;
+  }, [cancelPreparedSource]);
+
+  const offerCandidate = useCallback(
+    (document: EditorDocument, audio: PreparedAudioSource) => {
+      const current = editorRef.current;
+      const needsConfirmation =
+        current != null && (current.dirty || current.document.source.kind === 'local');
+
+      if (needsConfirmation) {
+        setPendingCandidate({ document, audio });
+        return;
+      }
+      if (commitSource(audio)) dispatch({ type: 'replaceDocument', document });
+    },
+    [commitSource],
+  );
+
+  const loadSeeded = useCallback(async () => {
+    const attempt = beginAttempt();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+    setSeededError(null);
+    setSourceLoading('seeded');
+
+    try {
+      const track = await getSeededTrack(controller.signal);
+      if (attempt !== attemptRef.current) return;
+      const prepared = await prepareSource({ kind: 'seeded', url: track.audio_url });
+      if (attempt !== attemptRef.current) return;
+      offerCandidate(normalizeSeededTrack(track, prepared.durationMs), prepared);
+    } catch (error) {
+      if (
+        controller.signal.aborted ||
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        attempt !== attemptRef.current
+      ) {
+        return;
+      }
+      setSeededError(sourceError(error));
+    } finally {
+      if (attempt === attemptRef.current) setSourceLoading(null);
+    }
+  }, [beginAttempt, offerCandidate, prepareSource]);
+
+  useEffect(() => {
+    void loadSeeded();
+    return () => {
+      attemptRef.current += 1;
+      fetchAbortRef.current?.abort();
+      cancelPreparedSource();
+    };
+  }, [cancelPreparedSource, loadSeeded]);
+
+  const handleImport = useCallback(
+    async (file: File, lyrics: string) => {
+      setImportError(null);
+      const parsed = parsePastedLyrics(lyrics);
+      if (!parsed.ok) {
+        setImportError(parsed.error);
+        return;
+      }
+
+      const attempt = beginAttempt();
+      setSourceLoading('local');
+      try {
+        const prepared = await prepareSource({ kind: 'local', file });
+        if (attempt !== attemptRef.current) return;
+        offerCandidate(
+          normalizeLocalTrack(file.name, prepared.url, prepared.durationMs, parsed.lines),
+          prepared,
+        );
+      } catch (error) {
+        if (
+          (error instanceof DOMException && error.name === 'AbortError') ||
+          attempt !== attemptRef.current
+        ) {
+          return;
+        }
+        setImportError(
+          `${sourceError(error)} Choose a browser-supported audio file and try again.`,
+        );
+      } finally {
+        if (attempt === attemptRef.current) setSourceLoading(null);
+      }
+    },
+    [beginAttempt, offerCandidate, prepareSource],
+  );
+
+  const confirmReplacement = useCallback(() => {
+    if (!pendingCandidate) return;
+    if (commitSource(pendingCandidate.audio)) {
+      dispatch({ type: 'replaceDocument', document: pendingCandidate.document });
+    }
+    setPendingCandidate(null);
+  }, [commitSource, pendingCandidate]);
+
+  const cancelReplacement = useCallback(() => {
+    cancelPreparedSource();
+    setPendingCandidate(null);
+  }, [cancelPreparedSource]);
+
+  const stamp = useCallback(() => {
+    dispatch({ type: 'stamp', atMs: readCurrentTimeMs() });
+  }, [readCurrentTimeMs]);
+
+  const finish = useCallback(() => {
+    dispatch({ type: 'finish', atMs: readCurrentTimeMs() });
+  }, [readCurrentTimeMs]);
+
+  const playingLineId = editor
+    ? getPlayingLineId(editor, playback.currentTimeMs)
+    : null;
 
   return (
-    <>
-      <h1>{track.title}</h1>
-      <p>{track.lines.length} lines</p>
-      <audio controls src={track.audio_url} />
-    </>
+    <div className="app-shell">
+      <audio ref={audioRef} preload="metadata" className="sr-only" />
+
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">V</span>
+          <div>
+            <p className="eyebrow">Lyric timing workspace</p>
+            <span className="brand-name">VerseSync</span>
+          </div>
+        </div>
+        <div className="header-source">
+          <div>
+            <span>{editor?.document.title ?? 'No active track'}</span>
+            <small>Edits live in this browser session only</small>
+          </div>
+          <button type="button" onClick={() => void loadSeeded()} disabled={sourceLoading != null}>
+            {sourceLoading === 'seeded' ? 'Loading seeded…' : 'Load seeded track'}
+          </button>
+        </div>
+      </header>
+
+      {seededError && (
+        <div className="source-alert" role="alert">
+          <p>{seededError}</p>
+          <button type="button" onClick={() => void loadSeeded()}>
+            Retry seeded track
+          </button>
+        </div>
+      )}
+
+      <ImportPanel
+        isLoading={sourceLoading === 'local'}
+        error={importError}
+        pendingTitle={pendingCandidate?.document.title ?? null}
+        onImport={(file, lyrics) => void handleImport(file, lyrics)}
+        onConfirmReplacement={confirmReplacement}
+        onCancelReplacement={cancelReplacement}
+      />
+
+      {editor ? (
+        <div className="editor-grid">
+          <LyricsPanel
+            editor={editor}
+            playingLineId={playingLineId}
+            onSelect={(lineId) => dispatch({ type: 'select', lineId })}
+          />
+          <CaptureWorkspace
+            editor={editor}
+            currentTimeMs={playback.currentTimeMs}
+            isPlaying={playback.isPlaying}
+            isReady={playback.isReady}
+            playbackError={playback.error}
+            onSelectSegment={(lineId) => dispatch({ type: 'inspect', lineId })}
+            onTogglePlayback={() => void togglePlayback()}
+            onSeek={seek}
+            onStamp={stamp}
+            onFinish={finish}
+          />
+          <SegmentInspector
+            editor={editor}
+            onApply={(lineId, startMs, endMs) =>
+              dispatch({ type: 'editSegment', lineId, startMs, endMs })
+            }
+          />
+        </div>
+      ) : (
+        <section className="empty-state" aria-live="polite">
+          <p>{sourceLoading === 'seeded' ? 'Loading the seeded track…' : 'Load audio and lyrics to begin.'}</p>
+        </section>
+      )}
+    </div>
   );
 }

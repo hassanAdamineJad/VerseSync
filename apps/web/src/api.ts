@@ -8,6 +8,29 @@
  */
 const TOKEN = import.meta.env.VITE_API_TOKEN ?? 'lyric-align-dev-token-7f3a91';
 
+export type ApiLyricLine = {
+  id: string;
+  index: number;
+  text: string;
+};
+
+export type ApiSegment = {
+  line_id: string;
+  start_ms: number;
+  end_ms: number;
+};
+
+export type SeededTrackResponse = {
+  id: string;
+  title: string;
+  artist: string;
+  duration_seconds: number;
+  audio_url: string;
+  lines: ApiLyricLine[];
+  version: number;
+  alignment: { segments: ApiSegment[] } | null;
+};
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -44,4 +67,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return body as T;
+}
+
+export function getSeededTrack(signal?: AbortSignal): Promise<SeededTrackResponse> {
+  return api<SeededTrackResponse>('/api/v1/track', { signal });
 }

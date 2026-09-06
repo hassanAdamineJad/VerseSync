@@ -1,56 +1,21 @@
-/*
- * Boilerplate. Not a design, and not a hint about one.
- *
- * This file exists so the starting page is not raw browser default: a font
- * stack, a colour scheme that follows the OS, and readable defaults for the
- * handful of elements the placeholder renders. Nothing in here is load-bearing
- * and nothing in here is graded. Rename it, replace it with Tailwind or CSS
- * modules or styled-components, or delete it and start from nothing — all four
- * are fine.
- *
- * Deliberately absent: layout. No grid, no panes, no component classes. How the
- * editor is arranged is one of the choices the exercise is asking you to make,
- * so the scaffold does not make it for you.
- */
+@import "tailwindcss";
 
-:root {
-  /* Colour: light by default, dark below. Swap the values, or the whole idea. */
-  --bg: #fbfbfa;
-  --surface: #ffffff;
-  --border: #e3e2df;
-  --text: #1c1b19;
-  --text-muted: #6b6862;
-  --accent: #2f6f4f;
-  --accent-contrast: #ffffff;
-  --danger: #a33a2c;
-
-  --radius: 6px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
-    'Liberation Mono', monospace;
-
-  color-scheme: light dark;
+@theme {
+  --color-navy-950: #07101f;
+  --color-navy-900: #0c1729;
+  --color-navy-850: #111e33;
+  --color-navy-800: #17263d;
+  --color-navy-700: #263a55;
+  --color-cyan-400: #28d7ee;
+  --color-cyan-300: #72e8f6;
+  --color-rose-400: #fb7185;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17181a;
-    --surface: #1f2124;
-    --border: #33363b;
-    --text: #e8e8e6;
-    --text-muted: #9a9c9f;
-    --accent: #63b98c;
-    --accent-contrast: #10231a;
-    --danger: #e08472;
-  }
+:root {
+  color-scheme: dark;
+  background: var(--color-navy-950);
 }
 
 *,
@@ -60,136 +25,590 @@
 }
 
 html,
-body {
-  margin: 0;
-  height: 100%;
-}
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Padding only, so the placeholder is not glued into the corner. Drop it if
- * you want a full-bleed editor. */
+body,
 #root {
   min-height: 100%;
-  padding: var(--space-6);
+  margin: 0;
 }
 
-h1,
-h2,
-h3 {
-  margin: 0 0 var(--space-2);
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+body {
+  @apply bg-navy-950 font-sans text-sm leading-relaxed text-slate-100 antialiased;
 }
 
-h1 {
-  font-size: 1.5rem;
-}
-
-h2 {
-  font-size: 1.125rem;
-}
-
-h3 {
-  font-size: 1rem;
-}
-
-p {
-  margin: 0 0 var(--space-3);
-  color: var(--text-muted);
-}
-
-a {
-  color: var(--accent);
-  text-underline-offset: 2px;
-}
-
-code,
-kbd,
-pre,
-samp {
-  font-family: var(--font-mono);
-  font-size: 0.875em;
-}
-
-kbd {
-  padding: 1px var(--space-1);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  background: var(--surface);
-}
-
-/* Form controls, because the browser defaults for these are the loudest part
- * of an unstyled page. */
 button,
 input,
-select,
 textarea {
   font: inherit;
-  color: inherit;
 }
 
 button {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
+  @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-navy-700 bg-navy-800 px-3 py-2 font-semibold text-slate-100 transition-colors;
 }
 
 button:hover:not(:disabled) {
-  border-color: var(--text-muted);
+  @apply border-cyan-400 text-cyan-300;
 }
 
 button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  @apply cursor-not-allowed opacity-45;
 }
 
 input,
-select,
 textarea {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  @apply w-full rounded-lg border border-navy-700 bg-navy-950 px-3 py-2 text-slate-100 placeholder:text-slate-600;
 }
 
 textarea {
-  resize: vertical;
+  @apply resize-y;
 }
 
-/* One visible focus ring for everything, rather than three different ones. */
+label {
+  @apply grid gap-1.5 text-xs font-semibold text-slate-300;
+}
+
+kbd {
+  @apply rounded border border-navy-700 bg-navy-950 px-1.5 py-0.5 font-mono text-[0.68rem] font-normal text-slate-400;
+}
+
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-audio {
-  width: 100%;
-  max-width: 420px;
+  outline: 2px solid var(--color-cyan-400);
+  outline-offset: 3px;
 }
 
 ::selection {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  @apply bg-cyan-400 text-navy-950;
 }
 
-/* Nothing animates on load — an entry transition would make the Playwright
- * visibility assertions flaky for no gain. If you add motion, respect this. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-shell {
+  @apply mx-auto min-h-screen max-w-[1600px] px-4 pb-6 sm:px-6;
+}
+
+.app-header {
+  @apply sticky top-0 z-20 flex min-h-20 items-center justify-between gap-4 border-b border-navy-700 bg-navy-950/95 py-3 backdrop-blur;
+}
+
+.brand,
+.header-source,
+.section-heading,
+.transport-controls,
+.button-row,
+.capture-actions {
+  @apply flex items-center;
+}
+
+.brand {
+  @apply gap-3;
+}
+
+.brand-mark {
+  @apply grid size-10 place-items-center rounded-xl bg-cyan-400 font-mono text-lg font-black text-navy-950 shadow-[0_0_24px_rgba(40,215,238,0.18)];
+}
+
+.brand-name {
+  @apply text-xl font-bold tracking-tight text-white;
+}
+
+.eyebrow {
+  @apply m-0 font-mono text-[0.68rem] font-bold uppercase tracking-[0.16em] text-cyan-300;
+}
+
+.header-source {
+  @apply justify-end gap-3 text-right;
+}
+
+.header-source div {
+  @apply grid;
+}
+
+.header-source span {
+  @apply max-w-64 truncate font-semibold text-white;
+}
+
+.header-source small {
+  @apply text-xs text-slate-400;
+}
+
+.session-badge,
+.source-badge,
+.line-progress {
+  @apply shrink-0 rounded-full border border-navy-700 bg-navy-950 px-2.5 py-1 font-mono text-[0.68rem] text-slate-300;
+}
+
+.source-alert {
+  @apply mt-4 flex items-center justify-between gap-4 rounded-xl border border-rose-400/50 bg-rose-400/10 p-3 text-rose-100;
+}
+
+.source-alert p,
+.form-error,
+.editor-message {
+  @apply m-0 text-sm;
+}
+
+.import-panel,
+.lyrics-panel,
+.transport-card,
+.capture-card,
+.inspector-panel,
+.empty-state {
+  @apply rounded-xl border border-navy-700 bg-navy-900 shadow-[0_16px_50px_rgba(0,0,0,0.18)];
+}
+
+.import-panel {
+  @apply mt-4 p-4;
+}
+
+.section-heading {
+  @apply justify-between gap-3;
+}
+
+.section-heading h2,
+.capture-card h2,
+.inspector-panel h2 {
+  @apply m-0 text-base font-bold tracking-tight text-white;
+}
+
+.import-panel form {
+  @apply mt-4 grid gap-3 md:grid-cols-[minmax(12rem,0.7fr)_minmax(18rem,1.3fr)_auto] md:items-end;
+}
+
+.import-panel textarea {
+  @apply min-h-28;
+}
+
+.form-error {
+  @apply mt-3 text-rose-300;
+}
+
+.replace-confirmation {
+  @apply mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-cyan-400/40 bg-cyan-400/10 p-3;
+}
+
+.replace-confirmation p {
+  @apply m-0 text-slate-200;
+}
+
+.button-row {
+  @apply gap-2;
+}
+
+.editor-grid {
+  @apply mt-4 grid min-h-[calc(100vh-19rem)] grid-cols-[minmax(16rem,0.85fr)_minmax(24rem,1.55fr)_minmax(17rem,0.9fr)] gap-4;
+}
+
+.lyrics-panel,
+.inspector-panel {
+  @apply min-w-0 p-4;
+}
+
+.lyrics-panel {
+  @apply flex max-h-[calc(100vh-7rem)] flex-col overflow-hidden;
+}
+
+.lyric-list {
+  @apply m-0 mt-4 grid list-none gap-2 overflow-y-auto p-0 pr-1;
+}
+
+.lyric-row {
+  @apply grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-2 border-navy-700 bg-navy-850 p-3 text-left font-normal;
+}
+
+.lyric-row:hover:not(:disabled) {
+  @apply bg-navy-800 text-slate-100;
+}
+
+.lyric-row[data-selected] {
+  @apply border-cyan-400 ring-1 ring-cyan-400/50;
+}
+
+.lyric-row[data-playing] {
+  @apply border-l-4 border-l-cyan-300;
+}
+
+.lyric-row[data-capturing] {
+  @apply bg-cyan-400/10;
+}
+
+.lyric-index {
+  @apply pt-0.5 font-mono text-xs text-slate-500;
+}
+
+.lyric-copy {
+  @apply grid min-w-0 gap-1;
+}
+
+.lyric-text {
+  @apply wrap-break-word font-medium leading-snug text-slate-100;
+}
+
+.lyric-time,
+.transport-time,
+.capture-start,
+.timing-summary dd {
+  @apply font-mono text-xs tabular-nums text-slate-400;
+}
+
+.line-labels {
+  @apply flex max-w-20 flex-col items-end gap-1 text-[0.62rem] uppercase tracking-wide text-slate-400;
+}
+
+.line-labels span,
+.line-state {
+  @apply rounded bg-navy-950 px-1.5 py-0.5;
+}
+
+.line-labels span:not(.line-state) {
+  @apply text-cyan-300;
+}
+
+.capture-workspace {
+  @apply grid min-w-0 content-start gap-4;
+}
+
+.transport-card,
+.capture-card {
+  @apply p-5;
+}
+
+.timeline-card {
+  @apply rounded-xl border border-navy-700 bg-navy-900 p-5 shadow-[0_16px_50px_rgba(0,0,0,0.18)];
+}
+
+.timeline-heading {
+  @apply items-start gap-4;
+}
+
+.timeline-heading > div {
+  @apply min-w-0;
+}
+
+.timeline-header-actions {
+  @apply flex flex-wrap items-center justify-end gap-3;
+}
+
+.timeline-window-copy {
+  @apply mt-2 text-xs text-slate-400;
+}
+
+.timeline-zoom-controls {
+  @apply flex items-center gap-2;
+}
+
+.timeline-zoom-controls button {
+  @apply min-h-8 min-w-8 px-0 py-0 text-base font-bold leading-none;
+}
+
+.timeline-window-value {
+  @apply min-w-24 rounded-full border border-navy-700 bg-navy-950 px-2.5 py-1 text-center font-mono text-[0.68rem] text-slate-300;
+}
+
+.transport-controls {
+  @apply mt-5 justify-between gap-4;
+}
+
+.seek-control {
+  @apply mt-4 block;
+}
+
+input[type="range"] {
+  @apply h-2 cursor-pointer appearance-none rounded-full border-0 bg-navy-700 p-0 accent-cyan-400;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  appearance: none;
+  border: 3px solid var(--color-navy-950);
+  border-radius: 999px;
+  background: var(--color-cyan-400);
+  box-shadow: 0 0 0 1px var(--color-cyan-300);
+}
+
+.capture-card {
+  @apply border-cyan-400/35 bg-linear-to-br from-navy-900 to-navy-850;
+}
+
+.timeline-ruler {
+  @apply relative mt-6 h-10 border-b border-navy-700 pt-4;
+}
+
+.timeline-tick {
+  @apply absolute bottom-0 w-px bg-navy-700;
+  height: 100%;
+}
+
+.timeline-tick span {
+  @apply absolute left-1/2 top-0 -translate-x-1/2 font-mono text-[0.68rem] tabular-nums text-slate-500;
+}
+
+.timeline-surface {
+  @apply relative mt-4 overflow-hidden rounded-xl border border-navy-700 bg-navy-950/80;
+  min-height: 14rem;
+}
+
+.waveform-band {
+  @apply relative flex h-28 items-center gap-px overflow-hidden border-b border-navy-700 px-3 py-4;
+  background-image:
+    linear-gradient(to right, rgba(38, 58, 85, 0.28) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(38, 58, 85, 0.2) 1px, transparent 1px);
+  background-size: calc(100% / 12) 100%, 100% 50%;
+}
+
+.waveform-bar {
+  @apply block flex-1 rounded-full bg-cyan-400/80;
+}
+
+.segment-lane {
+  @apply relative min-h-32 p-3;
+  background-image: linear-gradient(to right, rgba(38, 58, 85, 0.18) 1px, transparent 1px);
+  background-size: calc(100% / 12) 100%;
+}
+
+.timeline-segment {
+  @apply absolute top-3 flex min-h-11 items-center overflow-hidden rounded-md border border-cyan-400/35 bg-cyan-400/12 px-1.5 py-1 text-left shadow-[0_8px_20px_rgba(0,0,0,0.15)];
+}
+
+.timeline-segment[data-selected] {
+  @apply border-cyan-300 ring-1 ring-cyan-300/60;
+}
+
+.timeline-segment[data-playing] {
+  @apply bg-cyan-400/20;
+}
+
+.timeline-segment-label {
+  @apply block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.68rem] font-medium leading-none text-slate-100;
+}
+
+.timeline-segment-index {
+  @apply block w-full overflow-hidden text-center font-mono text-[0.68rem] leading-none text-cyan-300;
+}
+
+.timeline-playhead {
+  @apply absolute inset-y-0 z-10 w-px bg-cyan-300 shadow-[0_0_16px_rgba(114,232,246,0.6)];
+}
+
+.timeline-playhead::before {
+  content: "";
+  @apply absolute left-1/2 top-2 size-3 -translate-x-1/2 rounded-full bg-cyan-300;
+}
+
+.timeline-note {
+  @apply m-0 flex min-h-full items-center justify-center px-4 py-8 text-center text-sm text-slate-400;
+}
+
+.timeline-navigation {
+  @apply mt-4 flex flex-wrap items-center gap-3;
+}
+
+.timeline-navigation-label {
+  @apply min-w-0 flex-1;
+}
+
+.timeline-navigation-label span {
+  @apply text-[0.68rem] uppercase tracking-[0.16em] text-slate-400;
+}
+
+.timeline-navigation-label input {
+  @apply mt-2;
+}
+
+.timeline-return-button {
+  @apply min-h-8 px-3 py-1.5 text-xs;
+}
+
+.capture-status {
+  @apply min-h-28;
+}
+
+.capture-status h2 {
+  @apply mt-3 max-w-3xl text-2xl leading-tight sm:text-3xl;
+}
+
+.capture-start {
+  @apply mt-3 inline-block rounded-md bg-navy-950 px-2 py-1 text-cyan-300;
+}
+
+.next-action {
+  @apply mt-4 rounded-lg border border-navy-700 bg-navy-950/70 p-3 text-sm text-slate-300;
+}
+
+.capture-actions {
+  @apply mt-4 flex-wrap gap-3;
+}
+
+.primary-action,
+.inspector-apply {
+  @apply border-cyan-400 bg-cyan-400 text-navy-950;
+}
+
+.primary-action:hover:not(:disabled),
+.inspector-apply:hover:not(:disabled) {
+  @apply border-cyan-300 bg-cyan-300 text-navy-950;
+}
+
+.primary-action {
+  @apply min-h-12 px-5 text-base;
+}
+
+.primary-action kbd {
+  @apply border-cyan-300/60 bg-navy-950/15 text-navy-950;
+}
+
+.editor-message {
+  @apply mt-4 rounded-lg bg-navy-950 p-3 text-slate-200;
+}
+
+.inspector-panel {
+  @apply self-start;
+}
+
+.inspector-content {
+  @apply mt-4 grid gap-4;
+}
+
+.inspector-lyric {
+  @apply grid gap-1 rounded-lg bg-navy-850 p-3;
+}
+
+.inspector-lyric span {
+  @apply text-xs text-slate-400;
+}
+
+.inspector-panel form {
+  @apply grid gap-4;
+}
+
+.timing-fields {
+  @apply grid grid-cols-2 gap-3;
+}
+
+.timing-fields input {
+  @apply font-mono tabular-nums;
+}
+
+.timing-summary {
+  @apply m-0 grid grid-cols-3 divide-x divide-navy-700 rounded-lg border border-navy-700 bg-navy-950;
+}
+
+.timing-summary div {
+  @apply min-w-0 p-2;
+}
+
+.timing-summary dt {
+  @apply text-[0.65rem] uppercase tracking-wide text-slate-500;
+}
+
+.timing-summary dd {
+  @apply m-0 mt-1 truncate text-slate-200;
+}
+
+.inspector-empty {
+  @apply rounded-lg border border-dashed border-navy-700 p-4;
+}
+
+.inspector-empty p {
+  @apply mb-0 mt-3 text-slate-400;
+}
+
+.empty-state {
+  @apply mt-4 grid min-h-64 place-items-center p-8 text-slate-400;
+}
+
+@media (max-width: 1100px) {
+  .editor-grid {
+    @apply grid-cols-[minmax(15rem,0.8fr)_minmax(24rem,1.4fr)];
+  }
+
+  .inspector-panel {
+    @apply col-start-2;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-header,
+  .header-source {
+    @apply items-start;
+  }
+
+  .app-header {
+    @apply static flex-col;
+  }
+
+  .header-source {
+    @apply w-full justify-between text-left;
+  }
+
+  .import-panel form,
+  .editor-grid {
+    @apply grid-cols-1;
+  }
+
+  .editor-grid {
+    @apply min-h-0;
+  }
+
+  .lyrics-panel {
+    @apply max-h-112;
+  }
+
+  .timeline-surface {
+    min-height: 12rem;
+  }
+
+  .timeline-heading {
+    @apply flex-col items-start;
+  }
+
+  .timeline-header-actions {
+    @apply w-full justify-between;
+  }
+
+  .capture-workspace,
+  .inspector-panel {
+    @apply col-start-1;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    @apply px-3;
+  }
+
+  .header-source,
+  .replace-confirmation {
+    @apply flex-col items-stretch;
+  }
+
+  .timing-fields {
+    @apply grid-cols-1;
+  }
+
+  .lyric-row {
+    @apply grid-cols-[1.75rem_minmax(0,1fr)];
+  }
+
+  .line-labels {
+    @apply col-span-2 row-start-2 max-w-none flex-row items-center pl-8;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
+    scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
