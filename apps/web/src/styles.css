@@ -392,6 +392,24 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: grabbing;
 }
 
+.timeline-segment-handle {
+  @apply absolute inset-y-0 z-10 w-2 rounded-sm bg-cyan-300/30 opacity-0 transition-opacity;
+}
+
+.timeline-segment:hover .timeline-segment-handle,
+.timeline-segment[data-selected] .timeline-segment-handle,
+.timeline-segment:focus-visible .timeline-segment-handle {
+  @apply opacity-100;
+}
+
+.timeline-segment-handle-left {
+  @apply left-0 cursor-ew-resize border-r border-cyan-300/40;
+}
+
+.timeline-segment-handle-right {
+  @apply right-0 cursor-ew-resize border-l border-cyan-300/40;
+}
+
 .timeline-segment-label {
   @apply block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.68rem] font-medium leading-none text-slate-100;
 }
