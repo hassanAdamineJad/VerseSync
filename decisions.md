@@ -205,3 +205,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** One handle keeps the interaction compact and predictable, stable line IDs let reorder preserve selection, timing, and any open capture state safely, and routing by drop target avoids introducing a second drag affordance or mode toggle.
 - **Rejected alternatives:** Separate reorder and placement handles, disabling reordering during active capture, regenerating IDs on reorder, and automatically retiming or reselecting lines after moving them.
 - **Consequences:** Drag cleanup must clear sidebar insertion indicators, placement ghosts, and pointer state on every exit path; capture progression now follows the new document order because `captureCursorLineId` is recomputed against the reordered lines when needed; Undo/Redo treat each successful reorder as one authored history step.
+
+### 2026-09-07 — Decision: Extend the shared sidebar grip to support adjacent-row drag merge
+
+- **Context:** The lyric sheet now needs drag-to-merge without adding another affordance or inventing a second set of merge semantics beyond the existing `mergeLineWithNext` domain action.
+- **Choice:** Keep the shared grip and route its drop targets into three exclusive outcomes: timeline lane places only eligible untimed lines, drops between rows reorder, and drops onto the body of an adjacent row merge by dispatching `mergeLineWithNext` for the earlier line in document order regardless of drag direction.
+- **Rationale:** This preserves one compact gesture model while keeping merge semantics identical across the inspector button and drag interaction, including stable ID retention, text order, timing combination rules, capture safety, and history behavior.
+- **Rejected alternatives:** A separate merge handle, allowing non-adjacent drag merge, creating distinct drag-only merge logic, and falling back to reorder when the user drops onto an adjacent row body but merging is blocked.
+- **Consequences:** The sidebar must surface mutually exclusive feedback for reorder and merge targets, blocked adjacent-body drops now cancel cleanly instead of silently reordering, and every cleanup path must clear merge highlights, insertion indicators, placement ghosts, and pointer state together.

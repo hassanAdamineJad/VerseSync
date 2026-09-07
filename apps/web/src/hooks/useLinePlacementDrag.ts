@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildSnapTargets, findNearestSnap, getSnapThresholdMs } from '../timelineSnapping';
-import type { CompletedSegment, EditorState } from '../editor';
+import {
+  getMergeLineWithNextBlockReason,
+  type CompletedSegment,
+  type EditorState,
+} from '../editor';
 
 export type LinePlacementPreview = {
   pointerId: number;
@@ -15,6 +19,7 @@ export type LinePlacementPreview = {
   segment: CompletedSegment | null;
   snapTargetMs: number | null;
   sidebarInsertionIndex: number | null;
+  sidebarMergeTargetLineId: string | null;
 } | null;
 
 export type TimelineLaneMetrics = {
@@ -32,18 +37,27 @@ type PlacementComputation = {
   snapTargetMs: number | null;
 };
 
+type SidebarBodyTarget = {
+  isInsideList: boolean;
+  lineId: string | null;
+};
+
 type Options = {
   editor: EditorState | null;
   currentTimeMs: number;
+  selectedSegmentCount: number;
   onPlaceSegment: (segment: CompletedSegment) => void;
   onReorderLine: (lineId: string, toIndex: number) => void;
+  onMergeWithNext: (lineId: string) => void;
 };
 
 export function useLinePlacementDrag({
   editor,
   currentTimeMs,
+  selectedSegmentCount,
   onPlaceSegment,
   onReorderLine,
+  onMergeWithNext,
 }: Options) {
   const [linePlacementPreview, setLinePlacementPreview] = useState<LinePlacementPreview>(null);
   const linePlacementPreviewRef = useRef<LinePlacementPreview>(null);
@@ -71,10 +85,10 @@ export function useLinePlacementDrag({
     sidebarAutoScrollFrameRef.current = null;
   }, []);
 
-  const getSidebarInsertionIndex = useCallback(
-    (clientX: number, clientY: number): number | null => {
+  const getSidebarBodyTarget = useCallback(
+    (clientX: number, clientY: number): SidebarBodyTarget => {
       const list = lyricsListRef.current;
-      if (!list || !editor) return null;
+      if (!list || !editor) return { isInsideList: false, lineId: null };
 
       const listRect = list.getBoundingClientRect();
       const isInsideList =
@@ -82,7 +96,27 @@ export function useLinePlacementDrag({
         clientX <= listRect.right &&
         clientY >= listRect.top &&
         clientY <= listRect.bottom;
-      if (!isInsideList) return null;
+      if (!isInsideList) return { isInsideList: false, lineId: null };
+
+      const target = document.elementFromPoint(clientX, clientY);
+      if (!(target instanceof HTMLElement)) return { isInsideList: true, lineId: null };
+
+      const mergeZone = target.closest<HTMLElement>('[data-merge-zone="true"]');
+      return {
+        isInsideList: true,
+        lineId: mergeZone?.dataset.lineId ?? null,
+      };
+    },
+    [editor],
+  );
+
+  const getSidebarInsertionIndex = useCallback(
+    (clientX: number, clientY: number): number | null => {
+      const list = lyricsListRef.current;
+      if (!list || !editor) return null;
+
+      const bodyTarget = getSidebarBodyTarget(clientX, clientY);
+      if (!bodyTarget.isInsideList) return null;
 
       const rowElements = Array.from(
         list.querySelectorAll<HTMLElement>('[data-lyric-row="true"]'),
@@ -101,7 +135,31 @@ export function useLinePlacementDrag({
 
       return Math.min(Math.max(0, insertionIndex), editor.document.lines.length);
     },
-    [editor],
+    [editor, getSidebarBodyTarget],
+  );
+
+  const getSidebarMergeTargetLineId = useCallback(
+    (sourceLineId: string, clientX: number, clientY: number): string | null => {
+      if (!editor) return null;
+
+      const targetLineId = getSidebarBodyTarget(clientX, clientY).lineId;
+      if (!targetLineId || targetLineId === sourceLineId) return null;
+
+      const sourceIndex = editor.document.lines.findIndex((line) => line.id === sourceLineId);
+      const targetIndex = editor.document.lines.findIndex((line) => line.id === targetLineId);
+      if (sourceIndex < 0 || targetIndex < 0 || Math.abs(sourceIndex - targetIndex) !== 1) {
+        return null;
+      }
+
+      const earlierLineId =
+        sourceIndex < targetIndex ? sourceLineId : targetLineId;
+      if (getMergeLineWithNextBlockReason(editor, earlierLineId, selectedSegmentCount)) {
+        return null;
+      }
+
+      return targetLineId;
+    },
+    [editor, getSidebarBodyTarget, selectedSegmentCount],
   );
 
   const stepSidebarAutoScroll = useCallback(() => {
@@ -140,15 +198,39 @@ export function useLinePlacementDrag({
       list.scrollTop = nextScrollTop;
       const refreshedPreview = linePlacementPreviewRef.current;
       if (refreshedPreview?.hasDragged) {
+        const sidebarBodyTarget = getSidebarBodyTarget(pointer.clientX, pointer.clientY);
+        const bodyTargetLineId = sidebarBodyTarget.lineId;
+        const sourceIndex = editor?.document.lines.findIndex(
+          (line) => line.id === refreshedPreview.lineId,
+        ) ?? -1;
+        const bodyTargetIndex =
+          bodyTargetLineId != null
+            ? editor?.document.lines.findIndex((line) => line.id === bodyTargetLineId) ?? -1
+            : -1;
+        const isAdjacentBodyTarget =
+          sourceIndex >= 0 &&
+          bodyTargetIndex >= 0 &&
+          Math.abs(sourceIndex - bodyTargetIndex) === 1;
+        const shouldSuppressReorder =
+          bodyTargetLineId === refreshedPreview.lineId || isAdjacentBodyTarget;
+        const sidebarMergeTargetLineId = getSidebarMergeTargetLineId(
+          refreshedPreview.lineId,
+          pointer.clientX,
+          pointer.clientY,
+        );
         updatePlacementPreviewState({
           ...refreshedPreview,
-          sidebarInsertionIndex: getSidebarInsertionIndex(pointer.clientX, pointer.clientY),
+          sidebarInsertionIndex:
+            sidebarMergeTargetLineId == null && !shouldSuppressReorder
+              ? getSidebarInsertionIndex(pointer.clientX, pointer.clientY)
+              : null,
+          sidebarMergeTargetLineId,
         });
       }
     }
 
     sidebarAutoScrollFrameRef.current = window.requestAnimationFrame(stepSidebarAutoScroll);
-  }, [getSidebarInsertionIndex, updatePlacementPreviewState]);
+  }, [editor, getSidebarBodyTarget, getSidebarInsertionIndex, getSidebarMergeTargetLineId, updatePlacementPreviewState]);
 
   const ensureSidebarAutoScroll = useCallback(() => {
     if (sidebarAutoScrollFrameRef.current != null) return;
@@ -220,7 +302,26 @@ export function useLinePlacementDrag({
       const { segment, snapTargetMs } = canPlaceOnTimeline
         ? buildPlacementSegment(preview.lineId, clientX, clientY, snappingDisabled)
         : { segment: null, snapTargetMs: null };
-      const sidebarInsertionIndex = getSidebarInsertionIndex(clientX, clientY);
+      const sidebarBodyTarget = getSidebarBodyTarget(clientX, clientY);
+      const bodyTargetLineId = sidebarBodyTarget.lineId;
+      const sourceIndex =
+        editor?.document.lines.findIndex((line) => line.id === preview.lineId) ?? -1;
+      const bodyTargetIndex =
+        bodyTargetLineId != null
+          ? editor?.document.lines.findIndex((line) => line.id === bodyTargetLineId) ?? -1
+          : -1;
+      const isAdjacentBodyTarget =
+        sourceIndex >= 0 && bodyTargetIndex >= 0 && Math.abs(sourceIndex - bodyTargetIndex) === 1;
+      const shouldSuppressReorder =
+        bodyTargetLineId === preview.lineId || isAdjacentBodyTarget;
+      const sidebarMergeTargetLineId =
+        segment == null ? getSidebarMergeTargetLineId(preview.lineId, clientX, clientY) : null;
+      const sidebarInsertionIndex =
+        segment == null &&
+        sidebarMergeTargetLineId == null &&
+        !shouldSuppressReorder
+          ? getSidebarInsertionIndex(clientX, clientY)
+          : null;
 
       updatePlacementPreviewState({
         ...preview,
@@ -230,15 +331,18 @@ export function useLinePlacementDrag({
         segment,
         snapTargetMs,
         sidebarInsertionIndex,
+        sidebarMergeTargetLineId,
       });
-      if (sidebarInsertionIndex != null) ensureSidebarAutoScroll();
+      if (sidebarBodyTarget.isInsideList) ensureSidebarAutoScroll();
       else stopSidebarAutoScroll();
     },
     [
       buildPlacementSegment,
       editor,
       ensureSidebarAutoScroll,
+      getSidebarBodyTarget,
       getSidebarInsertionIndex,
+      getSidebarMergeTargetLineId,
       stopSidebarAutoScroll,
       updatePlacementPreviewState,
     ],
@@ -315,9 +419,23 @@ export function useLinePlacementDrag({
 
     const finalSegment = preview.hasDragged ? preview.segment : null;
     const finalInsertionIndex = preview.hasDragged ? preview.sidebarInsertionIndex : null;
+    const finalMergeTargetLineId = preview.hasDragged
+      ? preview.sidebarMergeTargetLineId
+      : null;
     clearPlacementPreview();
     if (finalSegment) {
       onPlaceSegment(finalSegment);
+      return;
+    }
+    if (finalMergeTargetLineId != null && editor) {
+      const sourceIndex = editor.document.lines.findIndex((line) => line.id === preview.lineId);
+      const targetIndex = editor.document.lines.findIndex(
+        (line) => line.id === finalMergeTargetLineId,
+      );
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      onMergeWithNext(
+        sourceIndex < targetIndex ? preview.lineId : finalMergeTargetLineId,
+      );
       return;
     }
     if (finalInsertionIndex == null || !editor) return;
@@ -334,6 +452,7 @@ export function useLinePlacementDrag({
     clearPlacementPreview,
     detachPlacementListeners,
     editor,
+    onMergeWithNext,
     onPlaceSegment,
     onReorderLine,
     stopSidebarAutoScroll,
@@ -369,6 +488,7 @@ export function useLinePlacementDrag({
         segment: null,
         snapTargetMs: null,
         sidebarInsertionIndex: null,
+        sidebarMergeTargetLineId: null,
       });
       if (!placementListenersAttachedRef.current) {
         window.addEventListener('pointermove', handlePlacementPointerMove);
@@ -406,6 +526,9 @@ export function useLinePlacementDrag({
     linePlacementPreview,
     lineReorderInsertionIndex: linePlacementPreview?.hasDragged
       ? linePlacementPreview.sidebarInsertionIndex
+      : null,
+    lineMergeTargetLineId: linePlacementPreview?.hasDragged
+      ? linePlacementPreview.sidebarMergeTargetLineId
       : null,
     beginPlacementDrag,
     cancelPlacementDrag,

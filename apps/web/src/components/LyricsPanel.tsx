@@ -13,6 +13,7 @@ type Props = {
   playingLineId: string | null;
   activePlacementLineId: string | null;
   lineReorderInsertionIndex: number | null;
+  lineMergeTargetLineId: string | null;
   onSelect: (lineId: string) => void;
   onInspect: (lineId: string) => void;
   onAddLine: (afterLineId: string | null, text: string) => void;
@@ -53,6 +54,7 @@ export function LyricsPanel({
   playingLineId,
   activePlacementLineId,
   lineReorderInsertionIndex,
+  lineMergeTargetLineId,
   onSelect,
   onInspect,
   onAddLine,
@@ -311,7 +313,7 @@ export function LyricsPanel({
 
           return (
             <li key={line.id} className="lyric-row-stack">
-              {lineReorderInsertionIndex === line.index ? (
+              {lineMergeTargetLineId == null && lineReorderInsertionIndex === line.index ? (
                 <div className="lyric-reorder-indicator" aria-hidden="true" />
               ) : null}
               <div
@@ -320,6 +322,7 @@ export function LyricsPanel({
                 data-selected={isSelected || undefined}
                 data-editing={isEditing || undefined}
                 data-playing={isPlaying || undefined}
+                data-merge-target={lineMergeTargetLineId === line.id || undefined}
               >
                 <div className="lyric-row-main">
                   <button
@@ -328,13 +331,13 @@ export function LyricsPanel({
                     data-dragging={activePlacementLineId === line.id || undefined}
                     title={
                       canPlaceOnTimeline
-                        ? 'Drag to reorder or place this untimed line on the timeline'
-                        : 'Drag to reorder this lyric line'
+                        ? 'Drag to reorder, merge with an adjacent line, or place this untimed line on the timeline'
+                        : 'Drag to reorder or merge with an adjacent lyric line'
                     }
                     aria-label={
                       canPlaceOnTimeline
-                        ? `Reorder or drag lyric line ${line.text}`
-                        : `Reorder lyric line ${line.text}`
+                        ? `Reorder, merge, or drag lyric line ${line.text}`
+                        : `Reorder or merge lyric line ${line.text}`
                     }
                     onClick={(event) => {
                       event.preventDefault();
@@ -389,7 +392,11 @@ export function LyricsPanel({
                   </button>
 
                   {isEditing ? (
-                    <label className="lyric-edit-field">
+                    <label
+                      className="lyric-edit-field"
+                      data-merge-zone="true"
+                      data-line-id={line.id}
+                    >
                       <span className="sr-only">Edit lyric text</span>
                       <input
                         ref={editInputRef}
@@ -437,6 +444,8 @@ export function LyricsPanel({
                     <button
                       type="button"
                       className="lyric-text-trigger"
+                      data-merge-zone="true"
+                      data-line-id={line.id}
                       ref={(element) => {
                         if (element) rowRefs.current.set(line.id, element);
                         else rowRefs.current.delete(line.id);
@@ -459,6 +468,12 @@ export function LyricsPanel({
                       <span className="lyric-text-display">{line.text}</span>
                     </button>
                   )}
+
+                  {lineMergeTargetLineId === line.id ? (
+                    <span className="lyric-merge-hint" aria-hidden="true">
+                      Merge with this line
+                    </span>
+                  ) : null}
 
                   <div className="lyric-row-delete-slot">
                     <button
@@ -522,7 +537,7 @@ export function LyricsPanel({
             </li>
           );
         })}
-        {lineReorderInsertionIndex === editor.document.lines.length ? (
+        {lineMergeTargetLineId == null && lineReorderInsertionIndex === editor.document.lines.length ? (
           <li aria-hidden="true" className="lyric-row-stack">
             <div className="lyric-reorder-indicator" />
           </li>

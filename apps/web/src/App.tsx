@@ -134,12 +134,14 @@ export default function App() {
   const {
     linePlacementPreview,
     lineReorderInsertionIndex,
+    lineMergeTargetLineId,
     beginPlacementDrag,
     cancelPlacementDrag,
     handleTimelineLaneMetricsChange,
   } = useLinePlacementDrag({
     editor,
     currentTimeMs: playback.currentTimeMs,
+    selectedSegmentCount,
     onPlaceSegment: (segment) => {
       dispatch({
         type: 'placeSegment',
@@ -151,6 +153,10 @@ export default function App() {
     onReorderLine: (lineId, toIndex) => {
       setDragPreviewSegments(null);
       dispatch({ type: 'reorderLine', lineId, toIndex });
+    },
+    onMergeWithNext: (lineId) => {
+      setDragPreviewSegments(null);
+      dispatch({ type: 'mergeLineWithNext', lineId });
     },
   });
 
@@ -358,6 +364,7 @@ export default function App() {
             playingLineId={playingLineId}
             activePlacementLineId={linePlacementPreview?.lineId ?? null}
             lineReorderInsertionIndex={lineReorderInsertionIndex}
+            lineMergeTargetLineId={lineMergeTargetLineId}
             onSelect={(lineId: string) => dispatch({ type: 'select', lineId })}
             onInspect={(lineId: string) => dispatch({ type: 'inspect', lineId })}
             onAddLine={addLine}
