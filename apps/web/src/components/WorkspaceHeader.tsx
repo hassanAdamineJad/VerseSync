@@ -19,7 +19,6 @@ type Props = {
   redoDisabled: boolean;
   onTogglePlayback: () => void;
   onPlaybackRateChange: (nextRate: number) => void;
-  onSeek: (nextMs: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onOpenKeyboardShortcuts: () => void;
@@ -42,7 +41,6 @@ export function WorkspaceHeader({
   redoDisabled,
   onTogglePlayback,
   onPlaybackRateChange,
-  onSeek,
   onUndo,
   onRedo,
   onOpenKeyboardShortcuts,
@@ -101,18 +99,6 @@ export function WorkspaceHeader({
               </strong>
             </div>
           </div>
-          <label className="toolbar-seek">
-            <span className="sr-only">Seek through audio</span>
-            <input
-              type="range"
-              min={0}
-              max={durationMs}
-              step={1}
-              value={Math.min(currentTimeMs, durationMs)}
-              onChange={(event) => onSeek(Number(event.target.value))}
-              disabled={!isPlaybackReady}
-            />
-          </label>
           {playbackError ? (
             <p className="toolbar-playback-error" role="alert">
               {playbackError}

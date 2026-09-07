@@ -366,7 +366,6 @@ export default function App() {
           redoDisabled={!canRedo}
           onTogglePlayback={() => void togglePlayback()}
           onPlaybackRateChange={setPlaybackRate}
-          onSeek={seek}
           onUndo={undo}
           onRedo={redo}
           onOpenKeyboardShortcuts={openKeyboardShortcuts}
@@ -425,6 +424,7 @@ export default function App() {
             }}
             onCancelSegmentDrag={() => setDragPreviewSegments(null)}
             onTimelineLaneMetricsChange={handleTimelineLaneMetricsChange}
+            onSeek={seek}
             shortcutsDisabled={isKeyboardShortcutsOpen}
             onTogglePlayback={() => void togglePlayback()}
             onStamp={stamp}

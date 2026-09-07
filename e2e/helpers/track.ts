@@ -59,19 +59,10 @@ export async function setPlaybackPosition(
   page: Page,
   milliseconds: number,
 ): Promise<void> {
-  const seekInput = page.getByRole('slider', { name: 'Seek through audio' });
-
-  await expect(seekInput).toBeEnabled();
-
-  await seekInput.evaluate((node, nextValue) => {
-    const input = node as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      'value',
-    )?.set;
-
-    setter?.call(input, String(nextValue));
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+  await page.locator('audio').evaluate((node, nextValue) => {
+    const audio = node as HTMLAudioElement;
+    audio.currentTime = Number(nextValue) / 1000;
+    audio.dispatchEvent(new Event('seeking'));
+    audio.dispatchEvent(new Event('timeupdate'));
   }, milliseconds);
 }

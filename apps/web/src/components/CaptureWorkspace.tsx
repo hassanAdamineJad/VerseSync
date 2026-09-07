@@ -33,6 +33,7 @@ type Props = {
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
   onTimelineLaneMetricsChange: (metrics: TimelineLaneMetrics) => void;
+  onSeek: (nextMs: number) => void;
   onTogglePlayback: () => void;
   onStamp: () => void;
   onFinish: () => void;
@@ -57,6 +58,7 @@ export function CaptureWorkspace({
   onCommitSegmentDrag,
   onCancelSegmentDrag,
   onTimelineLaneMetricsChange,
+  onSeek,
   onTogglePlayback,
   onStamp,
   onFinish,
@@ -125,6 +127,7 @@ export function CaptureWorkspace({
         onCommitSegmentDrag={onCommitSegmentDrag}
         onCancelSegmentDrag={onCancelSegmentDrag}
         onTimelineLaneMetricsChange={onTimelineLaneMetricsChange}
+        onSeek={onSeek}
       />
 
       <section className="capture-card" aria-labelledby="capture-title">

@@ -237,3 +237,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** A local modal keeps shortcut discovery consistent with the current session state, avoids documenting aspirational behavior, and lets focus, Escape handling, and return-to-trigger semantics stay inside the same accessible UI system as the editor.
 - **Rejected alternatives:** Static documentation outside the workspace, tooltip-only disclosure on individual buttons, and listing planned but unimplemented shortcuts for completeness.
 - **Consequences:** Header actions now include a dedicated help affordance, global shortcut listeners must ignore events while the modal is open, and future shortcut additions should update the modal copy only when the underlying behavior ships.
+
+### 2026-09-07 — Decision: Move playback seeking onto the timeline playhead and media surfaces
+
+- **Context:** The workspace had both a header seek slider and a timeline playhead, but the timeline already owns the visible window and playback context needed for direct spatial seeking.
+- **Choice:** Remove the header seek slider, make the timeline playhead itself keyboard and pointer seekable, and allow ruler or waveform clicks to seek within the active visible window while keeping the lower `Timeline view` control dedicated to viewport movement only.
+- **Rationale:** Seeking where users already see waveform, ticks, and segment timing makes transport more direct, while keeping playback position outside editor history preserves the established boundary between authored timing and transient audio state.
+- **Rejected alternatives:** Keeping duplicate header and timeline seek controls, allowing lane clicks that would compete with segment interaction, and coupling seek gestures to play/pause changes.
+- **Consequences:** Timeline pointer handling now intentionally controls playback without affecting segment timing, capture still enforces invalid backward closes through the existing reducer rules, and segment drag, resize, placement, and viewport navigation must continue to bypass seek behavior.

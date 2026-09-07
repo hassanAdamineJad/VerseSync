@@ -551,14 +551,6 @@ kbd {
   @apply text-stone-500;
 }
 
-.toolbar-seek {
-  @apply block min-w-0;
-}
-
-.toolbar-seek input {
-  @apply mt-0;
-}
-
 .toolbar-playback-error {
   @apply m-0 text-xs text-rose-300;
 }
@@ -1050,12 +1042,21 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .timeline-playhead {
-  @apply absolute inset-y-0 z-10 w-px bg-amber-300 shadow-[0_0_16px_rgba(248,197,106,0.42)];
+  @apply absolute inset-y-0 z-10 w-px cursor-ew-resize bg-amber-300 shadow-[0_0_16px_rgba(248,197,106,0.42)] focus-visible:outline-none;
 }
 
 .timeline-playhead::before {
   content: "";
-  @apply absolute left-1/2 top-2 size-3 -translate-x-1/2 rounded-full bg-amber-300;
+  @apply absolute left-1/2 top-2 size-3 -translate-x-1/2 rounded-full border border-amber-100/70 bg-amber-300 shadow-[0_0_14px_rgba(248,197,106,0.45)];
+}
+
+.timeline-playhead::after {
+  content: "";
+  @apply absolute left-1/2 top-1 h-5 w-5 -translate-x-1/2 rounded-full;
+}
+
+.timeline-playhead:focus-visible::before {
+  @apply ring-2 ring-amber-100/70 ring-offset-2 ring-offset-ink-900;
 }
 
 .timeline-note {

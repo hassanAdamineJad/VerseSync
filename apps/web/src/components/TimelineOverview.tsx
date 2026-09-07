@@ -26,6 +26,7 @@ type Props = {
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
+  onSeek: (nextMs: number) => void;
   onTimelineLaneMetricsChange: (metrics: {
     left: number;
     right: number;
@@ -64,6 +65,14 @@ type RulerTick = {
   valueMs: number;
   showLabel: boolean;
   align: 'start' | 'center' | 'end';
+};
+
+type SeekGesture = {
+  pointerId: number;
+  left: number;
+  width: number;
+  visibleStartMs: number;
+  visibleWindowMs: number;
 };
 
 function useWaveformPeaks(audioUrl: string | null): WaveformState {
@@ -327,11 +336,14 @@ export function TimelineOverview({
   onPreviewSegmentDrag,
   onCommitSegmentDrag,
   onCancelSegmentDrag,
+  onSeek,
   onTimelineLaneMetricsChange,
 }: Props) {
   const rulerRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const laneRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
+  const seekGestureRef = useRef<SeekGesture | null>(null);
   const durationMs = editor.document.durationMs;
   const audioUrl = editor.document.source.audioUrl;
   const { peaks, error } = useWaveformPeaks(audioUrl);
@@ -558,6 +570,31 @@ export function TimelineOverview({
     windowPreset === 'full' ? 'Full track' : `${windowPreset} seconds`;
   const navigationMaxMs = Math.max(0, durationMs - Math.min(requestedWindowMs, durationMs));
   const visibleRangeLabel = `${formatTime(visibleStartMs)}-${formatTime(visibleEndMs)}`;
+  const seekStepMs = Math.max(100, Math.round(visibleWindowMs / 60));
+
+  const seekWithinVisibleWindow = (nextMs: number) => {
+    const clampedMs = Math.min(
+      Math.max(visibleStartMs, Math.round(nextMs)),
+      visibleEndMs,
+    );
+    onSeek(clampedMs);
+  };
+
+  const seekFromClientX = (
+    clientX: number,
+    left: number,
+    width: number,
+    windowStartMs: number,
+    windowDurationMs: number,
+  ) => {
+    const ratio = width <= 0 ? 0 : (clientX - left) / width;
+    const nextMs = windowStartMs + Math.min(Math.max(ratio, 0), 1) * windowDurationMs;
+    const clampedMs = Math.min(
+      Math.max(windowStartMs, Math.round(nextMs)),
+      windowStartMs + windowDurationMs,
+    );
+    onSeek(clampedMs);
+  };
 
   useEffect(() => {
     const lane = laneRef.current;
@@ -827,7 +864,22 @@ export function TimelineOverview({
         </div>
       </div>
 
-      <div ref={rulerRef} className="timeline-ruler" aria-hidden="true">
+      <div
+        ref={rulerRef}
+        className="timeline-ruler"
+        aria-hidden="true"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          seekFromClientX(
+            event.clientX,
+            rect.left,
+            rect.width,
+            visibleStartMs,
+            visibleWindowMs,
+          );
+        }}
+      >
         {ticks.map((tick) => {
           const left = toWindowPercent(tick.valueMs, visibleStartMs, visibleWindowMs);
           const labelStyle: CSSProperties =
@@ -853,7 +905,7 @@ export function TimelineOverview({
         })}
       </div>
 
-      <div className="timeline-surface">
+      <div ref={surfaceRef} className="timeline-surface">
         {snapGuidePercent != null ? (
           <div
             className="timeline-snap-guide"
@@ -861,7 +913,21 @@ export function TimelineOverview({
             aria-hidden="true"
           />
         ) : null}
-        <div className="waveform-band" aria-label="Waveform preview">
+        <div
+          className="waveform-band"
+          aria-label="Waveform preview"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            seekFromClientX(
+              event.clientX,
+              rect.left,
+              rect.width,
+              visibleStartMs,
+              visibleWindowMs,
+            );
+          }}
+        >
           {visiblePeaks.length > 0 ? (
             visiblePeaks.map((peak, index) => (
               <span
@@ -1225,7 +1291,68 @@ export function TimelineOverview({
         <div
           className="timeline-playhead"
           style={{ left: `${Math.min(Math.max(playheadPercent, 0), 100)}%` }}
-          aria-hidden="true"
+          role="slider"
+          tabIndex={0}
+          aria-label="Playback position"
+          aria-valuemin={visibleStartMs}
+          aria-valuemax={visibleEndMs}
+          aria-valuenow={Math.min(Math.max(currentTimeMs, visibleStartMs), visibleEndMs)}
+          aria-valuetext={formatTime(currentTimeMs)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') {
+              event.preventDefault();
+              seekWithinVisibleWindow(currentTimeMs - seekStepMs);
+            } else if (event.key === 'ArrowRight') {
+              event.preventDefault();
+              seekWithinVisibleWindow(currentTimeMs + seekStepMs);
+            }
+          }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            const surface = surfaceRef.current;
+            if (!surface) return;
+
+            const rect = surface.getBoundingClientRect();
+            seekGestureRef.current = {
+              pointerId: event.pointerId,
+              left: rect.left,
+              width: rect.width,
+              visibleStartMs,
+              visibleWindowMs,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+            seekFromClientX(
+              event.clientX,
+              rect.left,
+              rect.width,
+              visibleStartMs,
+              visibleWindowMs,
+            );
+          }}
+          onPointerMove={(event) => {
+            const seekGesture = seekGestureRef.current;
+            if (!seekGesture || seekGesture.pointerId !== event.pointerId) return;
+            seekFromClientX(
+              event.clientX,
+              seekGesture.left,
+              seekGesture.width,
+              seekGesture.visibleStartMs,
+              seekGesture.visibleWindowMs,
+            );
+          }}
+          onPointerUp={(event) => {
+            if (seekGestureRef.current?.pointerId !== event.pointerId) return;
+            seekGestureRef.current = null;
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }}
+          onPointerCancel={(event) => {
+            if (seekGestureRef.current?.pointerId !== event.pointerId) return;
+            seekGestureRef.current = null;
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }}
+          onLostPointerCapture={() => {
+            seekGestureRef.current = null;
+          }}
         />
       </div>
 
