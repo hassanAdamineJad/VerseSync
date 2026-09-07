@@ -17,7 +17,8 @@
     "postinstall": "node scripts/postinstall.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1"
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
