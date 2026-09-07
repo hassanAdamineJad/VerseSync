@@ -375,6 +375,44 @@ export function TimelineOverview({
       visibleWindowMs,
     ],
   );
+  const liveCapturePreview = useMemo(() => {
+    const openSegment = editor.openSegment;
+    if (!openSegment) return null;
+
+    const line = editor.document.lines.find((entry) => entry.id === openSegment.lineId);
+    if (!line) return null;
+
+    const previewEndMs = Math.min(
+      Math.max(currentTimeMs, openSegment.startMs),
+      editor.document.durationMs,
+    );
+    if (previewEndMs < visibleStartMs || openSegment.startMs > visibleEndMs) {
+      return null;
+    }
+
+    const clippedStartMs = Math.max(openSegment.startMs, visibleStartMs);
+    const clippedEndMs = Math.min(previewEndMs, visibleEndMs);
+    const left = toWindowPercent(clippedStartMs, visibleStartMs, visibleWindowMs);
+    const width = Math.max(
+      0,
+      toWindowPercent(clippedEndMs, visibleStartMs, visibleWindowMs) - left,
+    );
+    return {
+      line,
+      startMs: openSegment.startMs,
+      endMs: previewEndMs,
+      left,
+      width,
+    };
+  }, [
+    currentTimeMs,
+    editor.document.durationMs,
+    editor.document.lines,
+    editor.openSegment,
+    visibleEndMs,
+    visibleStartMs,
+    visibleWindowMs,
+  ]);
   const playheadPercent = toWindowPercent(currentTimeMs, visibleStartMs, visibleWindowMs);
   const placementPreviewPercent =
     linePlacementPreview?.segment != null
@@ -1025,13 +1063,30 @@ export function TimelineOverview({
                 </button>
               );
             })
-          ) : (
+          ) : !liveCapturePreview ? (
             <p className="timeline-note">
               {timedSegments.length > 0
                 ? `No timed segments are visible in this ${currentWindowLabel.toLowerCase()} window.`
                 : 'Timed segments will appear here as you capture or load alignment data.'}
             </p>
-          )}
+          ) : null}
+          {liveCapturePreview ? (
+            <div
+              className="timeline-segment timeline-segment-capturing"
+              style={{
+                left: `${liveCapturePreview.left}%`,
+                width: `${Math.max(liveCapturePreview.width, 0)}%`,
+              }}
+              title={`${liveCapturePreview.line.text}\nCapturing from ${formatTime(liveCapturePreview.startMs)}`}
+              role="img"
+              aria-label={`${liveCapturePreview.line.text} capturing from ${formatTime(liveCapturePreview.startMs)} to ${formatTime(liveCapturePreview.endMs)}`}
+            >
+              <span className="timeline-segment-capture-dot" aria-hidden="true" />
+              <span className="timeline-segment-label">
+                {liveCapturePreview.line.text}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div

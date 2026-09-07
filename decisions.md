@@ -221,3 +221,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This keeps the timing domain anchored to real media time from `audio.currentTime`, while the transport can change listening speed without becoming part of the document model or editor history.
 - **Rejected alternatives:** Recording playback speed in `EditorState`, persisting it across tracks, and converting stamps or drag timing through speed-adjusted time instead of real media time.
 - **Consequences:** Stamping, finishing, dragging, resizing, Undo/Redo, and LRC export continue to use true media timestamps, while the header control remains a reversible playback convenience rather than an authored edit.
+
+### 2026-09-07 — Decision: Render the open capture as a derived live timeline preview
+
+- **Context:** One-pass capture already stores an `openSegment` start time separately from completed segments, but the timeline did not visualize the in-progress line while playback advanced.
+- **Choice:** Render a distinct non-interactive `Capturing` preview in the timeline lane by deriving its start from `openSegment.startMs` and its live end from the current playback time clamped to `>= startMs`, while keeping it entirely outside the completed segment collection.
+- **Rationale:** This exposes in-progress timing feedback without creating playback-driven editor updates, duplicate segments, selection targets, export entries, or Undo history churn.
+- **Rejected alternatives:** Writing playback ticks back into `EditorState`, representing the open line as a normal completed segment during capture, and hiding capture progress until the next commit.
+- **Consequences:** The timeline now shows capture growth live at every playback speed, paused playback leaves the preview frozen at its current width, and Stamp/Finish still commit exactly one completed segment from the existing reducer paths without any special export or selection cleanup.
