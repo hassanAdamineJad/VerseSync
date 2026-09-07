@@ -229,3 +229,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This exposes in-progress timing feedback without creating playback-driven editor updates, duplicate segments, selection targets, export entries, or Undo history churn.
 - **Rejected alternatives:** Writing playback ticks back into `EditorState`, representing the open line as a normal completed segment during capture, and hiding capture progress until the next commit.
 - **Consequences:** The timeline now shows capture growth live at every playback speed, paused playback leaves the preview frozen at its current width, and Stamp/Finish still commit exactly one completed segment from the existing reducer paths without any special export or selection cleanup.
+
+### 2026-09-07 — Decision: Expose implemented shortcuts through an in-workspace help modal
+
+- **Context:** The workspace now has enough keyboard behavior across playback, capture, editing, and timeline selection that users need a discoverable reference without leaving the session or learning undocumented commands.
+- **Choice:** Add a compact header trigger plus `?` keyboard entry point that opens a modal listing only the shortcuts already implemented, groups them by workflow area, and temporarily suspends background application shortcuts while the dialog is open.
+- **Rationale:** A local modal keeps shortcut discovery consistent with the current session state, avoids documenting aspirational behavior, and lets focus, Escape handling, and return-to-trigger semantics stay inside the same accessible UI system as the editor.
+- **Rejected alternatives:** Static documentation outside the workspace, tooltip-only disclosure on individual buttons, and listing planned but unimplemented shortcuts for completeness.
+- **Consequences:** Header actions now include a dedicated help affordance, global shortcut listeners must ignore events while the modal is open, and future shortcut additions should update the modal copy only when the underlying behavior ships.

@@ -1,9 +1,11 @@
-import { Download, Redo2, Undo2 } from 'lucide-react';
+import type { Ref } from 'react';
+import { Download, Keyboard, Redo2, Undo2 } from 'lucide-react';
 import { formatTime } from '../editor';
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
 type Props = {
+  keyboardShortcutsButtonRef: Ref<HTMLButtonElement>;
   trackTitle: string;
   sourceLabel: string;
   currentTimeMs: number;
@@ -20,11 +22,13 @@ type Props = {
   onSeek: (nextMs: number) => void;
   onUndo: () => void;
   onRedo: () => void;
+  onOpenKeyboardShortcuts: () => void;
   onExportLrc: () => void;
   onChangeTrack: () => void;
 };
 
 export function WorkspaceHeader({
+  keyboardShortcutsButtonRef,
   trackTitle,
   sourceLabel,
   currentTimeMs,
@@ -41,6 +45,7 @@ export function WorkspaceHeader({
   onSeek,
   onUndo,
   onRedo,
+  onOpenKeyboardShortcuts,
   onExportLrc,
   onChangeTrack,
 }: Props) {
@@ -134,6 +139,16 @@ export function WorkspaceHeader({
             title="Redo (Ctrl/Cmd+Shift+Z, Ctrl+Y)"
           >
             <Redo2 aria-hidden="true" size={16} strokeWidth={1.9} />
+          </button>
+          <button
+            ref={keyboardShortcutsButtonRef}
+            type="button"
+            className="toolbar-history-button"
+            onClick={onOpenKeyboardShortcuts}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+          >
+            <Keyboard aria-hidden="true" size={16} strokeWidth={1.9} />
           </button>
           <button
             type="button"

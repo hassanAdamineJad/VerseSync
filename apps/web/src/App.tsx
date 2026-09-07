@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
 import { CaptureWorkspace } from './components/CaptureWorkspace';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { LinePlacementGhost } from './components/LinePlacementGhost';
 import { LyricsPanel } from './components/LyricsPanel';
 import { SegmentInspector } from './components/SegmentInspector';
@@ -114,6 +115,8 @@ export default function App() {
   const [dragPreviewSegments, setDragPreviewSegments] = useState<CompletedSegment[] | null>(null);
   const [selectedSegmentCount, setSelectedSegmentCount] = useState(0);
   const [isChangingTrack, setIsChangingTrack] = useState(false);
+  const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
+  const keyboardShortcutsTriggerRef = useRef<HTMLButtonElement>(null);
   const editor = history.present;
 
   const handleMediaEnded = useCallback((durationMs: number) => {
@@ -210,13 +213,32 @@ export default function App() {
     dispatch({ type: 'redo' });
   }, [canRedo, resetWorkspacePreviews]);
 
+  const openKeyboardShortcuts = useCallback(() => {
+    setIsKeyboardShortcutsOpen(true);
+  }, []);
+
+  const closeKeyboardShortcuts = useCallback(() => {
+    setIsKeyboardShortcutsOpen(false);
+    window.requestAnimationFrame(() => {
+      keyboardShortcutsTriggerRef.current?.focus();
+    });
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isKeyboardShortcutsOpen) {
+        return;
+      }
       if (event.defaultPrevented || event.altKey || isEditableTarget(event.target)) {
         return;
       }
 
       const key = event.key.toLowerCase();
+      if (event.key === '?') {
+        event.preventDefault();
+        openKeyboardShortcuts();
+        return;
+      }
       const canUsePrimaryShortcut = event.metaKey || event.ctrlKey;
       if (!canUsePrimaryShortcut) return;
 
@@ -235,7 +257,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [redo, undo]);
+  }, [isKeyboardShortcutsOpen, openKeyboardShortcuts, redo, undo]);
 
   const playingLineId = editor
     ? getPlayingLineId(editor, playback.currentTimeMs)
@@ -330,6 +352,7 @@ export default function App() {
       <audio ref={audioRef} preload="metadata" className="sr-only" />
       <div className="workspace-shell">
         <WorkspaceHeader
+          keyboardShortcutsButtonRef={keyboardShortcutsTriggerRef}
           trackTitle={editor.document.title}
           sourceLabel={sourceLabel}
           currentTimeMs={playback.currentTimeMs}
@@ -346,9 +369,14 @@ export default function App() {
           onSeek={seek}
           onUndo={undo}
           onRedo={redo}
+          onOpenKeyboardShortcuts={openKeyboardShortcuts}
           onExportLrc={exportLrc}
           onChangeTrack={openTrackSetup}
         />
+
+        {isKeyboardShortcutsOpen ? (
+          <KeyboardShortcutsModal onClose={closeKeyboardShortcuts} />
+        ) : null}
 
         {linePlacementPreview?.hasDragged ? (
           <LinePlacementGhost
@@ -397,6 +425,7 @@ export default function App() {
             }}
             onCancelSegmentDrag={() => setDragPreviewSegments(null)}
             onTimelineLaneMetricsChange={handleTimelineLaneMetricsChange}
+            shortcutsDisabled={isKeyboardShortcutsOpen}
             onTogglePlayback={() => void togglePlayback()}
             onStamp={stamp}
             onFinish={finish}

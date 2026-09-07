@@ -26,6 +26,7 @@ type Props = {
   dragPreviewSegments: CompletedSegment[] | null;
   linePlacementPreview: LinePlacementPreview;
   currentTimeMs: number;
+  shortcutsDisabled: boolean;
   onSelectedSegmentCountChange: (count: number) => void;
   onSelectSegment: (lineId: string) => void;
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
@@ -49,6 +50,7 @@ export function CaptureWorkspace({
   dragPreviewSegments,
   linePlacementPreview,
   currentTimeMs,
+  shortcutsDisabled,
   onSelectedSegmentCountChange,
   onSelectSegment,
   onPreviewSegmentDrag,
@@ -78,6 +80,8 @@ export function CaptureWorkspace({
   const isFinalOpenLine = openLine != null && nextLine == null;
 
   useEffect(() => {
+    if (shortcutsDisabled) return;
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || isEditableTarget(event.target)) {
         return;
@@ -95,7 +99,7 @@ export function CaptureWorkspace({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor.openSegment, onFinish, onStamp, onTogglePlayback]);
+  }, [editor.openSegment, onFinish, onStamp, onTogglePlayback, shortcutsDisabled]);
 
   let nextAction = 'Select an untimed line, then stamp its start at the playhead.';
   if (!editor.openSegment && captureLine) {
