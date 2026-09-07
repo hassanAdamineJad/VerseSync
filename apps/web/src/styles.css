@@ -881,8 +881,12 @@ input[type="range"]::-webkit-slider-thumb {
   height: 100%;
 }
 
-.timeline-tick span {
-  @apply absolute left-1/2 top-0 -translate-x-1/2 font-mono text-[0.68rem] tabular-nums text-stone-500;
+.timeline-tick[data-labeled] {
+  @apply bg-stone-500/70;
+}
+
+.timeline-tick-label {
+  @apply absolute top-0 font-mono text-[0.68rem] tabular-nums text-stone-500 whitespace-nowrap;
 }
 
 .timeline-surface {

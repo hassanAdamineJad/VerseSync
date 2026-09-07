@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 import { buildSnapTargets, findNearestSnap, getSnapThresholdMs } from '../timelineSnapping';
 
@@ -40,6 +47,24 @@ type WindowPreset = 15 | 30 | 60 | 'full';
 const FULL_PEAK_COUNT = 720;
 const VISIBLE_PEAK_COUNT = 120;
 const WINDOW_PRESETS: WindowPreset[] = [15, 30, 60, 'full'];
+const MIN_RULER_LABEL_SPACING_PX = 90;
+const NICE_RULER_INTERVALS_MS = [
+  500,
+  1_000,
+  2_000,
+  3_000,
+  5_000,
+  10_000,
+  15_000,
+  30_000,
+  60_000,
+];
+
+type RulerTick = {
+  valueMs: number;
+  showLabel: boolean;
+  align: 'start' | 'center' | 'end';
+};
 
 function useWaveformPeaks(audioUrl: string | null): WaveformState {
   const [state, setState] = useState<WaveformState>({ peaks: [], error: null });
@@ -147,17 +172,92 @@ function getWindowFromStart(
   };
 }
 
-function buildRulerTicks(windowStartMs: number, windowEndMs: number): number[] {
-  const stepMs = 5_000;
-  const firstTickMs = Math.ceil(windowStartMs / stepMs) * stepMs;
-  const ticks = [windowStartMs];
-
-  for (let tickMs = firstTickMs; tickMs < windowEndMs; tickMs += stepMs) {
-    if (tickMs > windowStartMs) ticks.push(tickMs);
+function getNiceRulerIntervalMs(minimumIntervalMs: number): number {
+  for (const intervalMs of NICE_RULER_INTERVALS_MS) {
+    if (intervalMs >= minimumIntervalMs) return intervalMs;
   }
 
-  ticks.push(windowEndMs);
-  return Array.from(new Set(ticks));
+  let intervalMs = NICE_RULER_INTERVALS_MS[NICE_RULER_INTERVALS_MS.length - 1] ?? 60_000;
+  while (intervalMs < minimumIntervalMs) {
+    intervalMs *= 2;
+  }
+  return intervalMs;
+}
+
+function getMinorRulerIntervalMs(labelIntervalMs: number): number {
+  const smallerIntervals = NICE_RULER_INTERVALS_MS.filter(
+    (intervalMs) => intervalMs < labelIntervalMs,
+  );
+  return smallerIntervals.at(-1) ?? labelIntervalMs;
+}
+
+function buildRulerTicks(
+  windowStartMs: number,
+  windowEndMs: number,
+  windowDurationMs: number,
+  rulerWidthPx: number,
+): RulerTick[] {
+  const safeWidthPx = Math.max(rulerWidthPx, MIN_RULER_LABEL_SPACING_PX);
+  const minimumLabelIntervalMs =
+    (windowDurationMs * MIN_RULER_LABEL_SPACING_PX) / safeWidthPx;
+  const labelIntervalMs = getNiceRulerIntervalMs(minimumLabelIntervalMs);
+  const minorIntervalMs = getMinorRulerIntervalMs(labelIntervalMs);
+  const ticks = new Map<number, RulerTick>();
+  const labelCandidates = new Set<number>();
+
+  const getAlignment = (valueMs: number): RulerTick['align'] => {
+    const leftPx =
+      ((valueMs - windowStartMs) / Math.max(windowDurationMs, 1)) * safeWidthPx;
+    const rightPx = safeWidthPx - leftPx;
+    return leftPx < MIN_RULER_LABEL_SPACING_PX / 2
+      ? 'start'
+      : rightPx < MIN_RULER_LABEL_SPACING_PX / 2
+        ? 'end'
+        : 'center';
+  };
+
+  const addTick = (valueMs: number) => {
+    const clampedValueMs = Math.min(Math.max(valueMs, windowStartMs), windowEndMs);
+    if (ticks.has(clampedValueMs)) return;
+    ticks.set(clampedValueMs, {
+      valueMs: clampedValueMs,
+      showLabel: false,
+      align: getAlignment(clampedValueMs),
+    });
+  };
+
+  for (
+    let tickMs = Math.floor(windowStartMs / minorIntervalMs) * minorIntervalMs;
+    tickMs <= windowEndMs;
+    tickMs += minorIntervalMs
+  ) {
+    if (tickMs < windowStartMs) continue;
+    addTick(tickMs);
+    if (tickMs % labelIntervalMs === 0) {
+      labelCandidates.add(tickMs);
+    }
+  }
+
+  addTick(windowStartMs);
+  addTick(windowEndMs);
+  labelCandidates.add(windowStartMs);
+  labelCandidates.add(windowEndMs);
+
+  let lastLabeledLeftPx = Number.NEGATIVE_INFINITY;
+  for (const candidateMs of [...labelCandidates].sort((a, b) => a - b)) {
+    const leftPx =
+      ((candidateMs - windowStartMs) / Math.max(windowDurationMs, 1)) * safeWidthPx;
+    if (leftPx - lastLabeledLeftPx < MIN_RULER_LABEL_SPACING_PX) {
+      continue;
+    }
+
+    const tick = ticks.get(candidateMs);
+    if (!tick) continue;
+    tick.showLabel = true;
+    lastLabeledLeftPx = leftPx;
+  }
+
+  return [...ticks.values()].sort((a, b) => a.valueMs - b.valueMs);
 }
 
 function toWindowPercent(valueMs: number, windowStartMs: number, windowDurationMs: number) {
@@ -229,12 +329,14 @@ export function TimelineOverview({
   onCancelSegmentDrag,
   onTimelineLaneMetricsChange,
 }: Props) {
+  const rulerRef = useRef<HTMLDivElement>(null);
   const laneRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const durationMs = editor.document.durationMs;
   const audioUrl = editor.document.source.audioUrl;
   const { peaks, error } = useWaveformPeaks(audioUrl);
   const [laneWidthPx, setLaneWidthPx] = useState(0);
+  const [rulerWidthPx, setRulerWidthPx] = useState(0);
   const [windowPreset, setWindowPreset] = useState<WindowPreset>(15);
   const [followPlayhead, setFollowPlayhead] = useState(true);
   const [manualWindowStartMs, setManualWindowStartMs] = useState(0);
@@ -267,6 +369,22 @@ export function TimelineOverview({
 
     const observer = new ResizeObserver(updateWidth);
     observer.observe(lane);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const ruler = rulerRef.current;
+    if (!ruler) return;
+
+    const updateWidth = () => {
+      setRulerWidthPx(ruler.getBoundingClientRect().width);
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(ruler);
 
     return () => observer.disconnect();
   }, []);
@@ -325,8 +443,8 @@ export function TimelineOverview({
   }, [onSelectedSegmentCountChange, selectedLineIds.length]);
 
   const ticks = useMemo(
-    () => buildRulerTicks(visibleStartMs, visibleEndMs),
-    [visibleEndMs, visibleStartMs],
+    () => buildRulerTicks(visibleStartMs, visibleEndMs, visibleWindowMs, rulerWidthPx),
+    [rulerWidthPx, visibleEndMs, visibleStartMs, visibleWindowMs],
   );
   const visiblePeaks = useMemo(
     () => sampleVisiblePeaks(peaks, durationMs, visibleStartMs, visibleEndMs),
@@ -709,13 +827,28 @@ export function TimelineOverview({
         </div>
       </div>
 
-      <div className="timeline-ruler" aria-hidden="true">
-        {ticks.map((tickMs) => {
-          const left = toWindowPercent(tickMs, visibleStartMs, visibleWindowMs);
+      <div ref={rulerRef} className="timeline-ruler" aria-hidden="true">
+        {ticks.map((tick) => {
+          const left = toWindowPercent(tick.valueMs, visibleStartMs, visibleWindowMs);
+          const labelStyle: CSSProperties =
+            tick.align === 'start'
+              ? { position: 'absolute', top: 0, left: `calc(${left}% + 4px)` }
+              : tick.align === 'end'
+                ? { position: 'absolute', top: 0, left: `calc(${left}% - 4px)`, transform: 'translateX(-100%)' }
+                : { position: 'absolute', top: 0, left: `${left}%`, transform: 'translateX(-50%)' };
           return (
-            <div key={tickMs} className="timeline-tick" style={{ left: `${left}%` }}>
-              <span>{formatRulerLabel(tickMs)}</span>
-            </div>
+            <Fragment key={`${tick.valueMs}-${tick.showLabel ? 'label' : 'minor'}`}>
+              <div
+                className="timeline-tick"
+                data-labeled={tick.showLabel || undefined}
+                style={{ left: `${left}%` }}
+              />
+              {tick.showLabel ? (
+                <span className="timeline-tick-label" style={labelStyle}>
+                  {formatRulerLabel(tick.valueMs)}
+                </span>
+              ) : null}
+            </Fragment>
           );
         })}
       </div>
