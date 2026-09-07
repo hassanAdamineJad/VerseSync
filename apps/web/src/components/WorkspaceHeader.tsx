@@ -1,6 +1,8 @@
 import { Download, Redo2, Undo2 } from 'lucide-react';
 import { formatTime } from '../editor';
 
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
 type Props = {
   trackTitle: string;
   sourceLabel: string;
@@ -9,10 +11,12 @@ type Props = {
   isPlaying: boolean;
   isPlaybackReady: boolean;
   playbackError: string | null;
+  playbackRate: number;
   exportDisabled: boolean;
   undoDisabled: boolean;
   redoDisabled: boolean;
   onTogglePlayback: () => void;
+  onPlaybackRateChange: (nextRate: number) => void;
   onSeek: (nextMs: number) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -28,10 +32,12 @@ export function WorkspaceHeader({
   isPlaying,
   isPlaybackReady,
   playbackError,
+  playbackRate,
   exportDisabled,
   undoDisabled,
   redoDisabled,
   onTogglePlayback,
+  onPlaybackRateChange,
   onSeek,
   onUndo,
   onRedo,
@@ -68,6 +74,21 @@ export function WorkspaceHeader({
               {isPlaying ? 'Pause' : 'Play'}
               <kbd>Space</kbd>
             </button>
+            <label className="toolbar-speed">
+              <span className="sr-only">Playback speed</span>
+              <select
+                aria-label="Playback speed"
+                value={String(playbackRate)}
+                onChange={(event) => onPlaybackRateChange(Number(event.target.value))}
+                disabled={!isPlaybackReady}
+              >
+                {PLAYBACK_RATES.map((rate) => (
+                  <option key={rate} value={rate}>
+                    {rate}×
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="toolbar-time">
               <span>Current / total</span>
               <strong>

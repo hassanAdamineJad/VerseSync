@@ -440,6 +440,19 @@ kbd {
   @apply border-amber-300/65 bg-amber-400/16 text-stone-50;
 }
 
+.toolbar-speed {
+  @apply min-w-0;
+}
+
+.toolbar-speed select {
+  @apply min-h-10 min-w-20 rounded-xl border border-ink-700/80 bg-ink-900/88 px-3 py-2 text-sm text-stone-100;
+}
+
+.toolbar-speed select:hover:not(:disabled),
+.toolbar-speed select:focus-visible {
+  @apply border-amber-300/45 bg-ink-850 outline-none;
+}
+
 .toolbar-time {
   @apply grid min-w-40 gap-0.5 px-1 text-right;
 }

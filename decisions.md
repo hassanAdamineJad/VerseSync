@@ -213,3 +213,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This preserves one compact gesture model while keeping merge semantics identical across the inspector button and drag interaction, including stable ID retention, text order, timing combination rules, capture safety, and history behavior.
 - **Rejected alternatives:** A separate merge handle, allowing non-adjacent drag merge, creating distinct drag-only merge logic, and falling back to reorder when the user drops onto an adjacent row body but merging is blocked.
 - **Consequences:** The sidebar must surface mutually exclusive feedback for reorder and merge targets, blocked adjacent-body drops now cancel cleanly instead of silently reordering, and every cleanup path must clear merge highlights, insertion indicators, placement ghosts, and pointer state together.
+
+### 2026-09-07 — Decision: Treat playback speed as transient audio UI state that resets per track
+
+- **Context:** The workspace needs a playback-speed control to help timing work at slower or faster listening rates, but speed changes must not alter authored timestamps, Undo history, or source-switch behavior.
+- **Choice:** Store the selected playback rate in the audio controller alongside other transport-only state, apply it directly to the existing `<audio>` element with pitch preservation enabled where supported, keep it across play and pause, and reset it to `1x` whenever a new track source is committed.
+- **Rationale:** This keeps the timing domain anchored to real media time from `audio.currentTime`, while the transport can change listening speed without becoming part of the document model or editor history.
+- **Rejected alternatives:** Recording playback speed in `EditorState`, persisting it across tracks, and converting stamps or drag timing through speed-adjusted time instead of real media time.
+- **Consequences:** Stamping, finishing, dragging, resizing, Undo/Redo, and LRC export continue to use true media timestamps, while the header control remains a reversible playback convenience rather than an authored edit.

@@ -18,6 +18,13 @@ type PlaybackState = {
   isPlaying: boolean;
   isReady: boolean;
   error: string | null;
+  playbackRate: number;
+};
+
+type PitchPreservingAudio = HTMLAudioElement & {
+  preservesPitch?: boolean;
+  mozPreservesPitch?: boolean;
+  webkitPreservesPitch?: boolean;
 };
 
 const initialPlaybackState: PlaybackState = {
@@ -26,7 +33,23 @@ const initialPlaybackState: PlaybackState = {
   isPlaying: false,
   isReady: false,
   error: null,
+  playbackRate: 1,
 };
+
+function applyPlaybackRate(audio: HTMLAudioElement, playbackRate: number) {
+  audio.playbackRate = playbackRate;
+
+  const pitchPreservingAudio = audio as PitchPreservingAudio;
+  if ('preservesPitch' in pitchPreservingAudio) {
+    pitchPreservingAudio.preservesPitch = true;
+  }
+  if ('mozPreservesPitch' in pitchPreservingAudio) {
+    pitchPreservingAudio.mozPreservesPitch = true;
+  }
+  if ('webkitPreservesPitch' in pitchPreservingAudio) {
+    pitchPreservingAudio.webkitPreservesPitch = true;
+  }
+}
 
 export function useAudioController(onEnded: (durationMs: number) => void) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -40,6 +63,12 @@ export function useAudioController(onEnded: (durationMs: number) => void) {
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    applyPlaybackRate(audio, playback.playbackRate);
+  }, [playback.playbackRate]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -193,12 +222,14 @@ export function useAudioController(onEnded: (durationMs: number) => void) {
     activeResolvedUrlRef.current = new URL(prepared.url, window.location.href).href;
     audio.src = prepared.url;
     audio.load();
+    applyPlaybackRate(audio, 1);
     setPlayback({
       currentTimeMs: 0,
       durationMs: prepared.durationMs,
       isPlaying: false,
       isReady: true,
       error: null,
+      playbackRate: 1,
     });
     return true;
   }, []);
@@ -242,6 +273,18 @@ export function useAudioController(onEnded: (durationMs: number) => void) {
     setPlayback((current) => ({ ...current, currentTimeMs: boundedMs }));
   }, []);
 
+  const setPlaybackRate = useCallback((playbackRate: number) => {
+    const audio = audioRef.current;
+    if (!audio || !Number.isFinite(playbackRate) || playbackRate <= 0) return;
+
+    applyPlaybackRate(audio, playbackRate);
+    setPlayback((current) =>
+      current.playbackRate === playbackRate
+        ? current
+        : { ...current, playbackRate },
+    );
+  }, []);
+
   return {
     audioRef,
     playback,
@@ -249,6 +292,7 @@ export function useAudioController(onEnded: (durationMs: number) => void) {
     commitSource,
     cancelPreparedSource,
     readCurrentTimeMs,
+    setPlaybackRate,
     togglePlayback,
     seek,
   };

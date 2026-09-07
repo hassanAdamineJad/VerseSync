@@ -127,6 +127,7 @@ export default function App() {
     commitSource,
     cancelPreparedSource,
     readCurrentTimeMs,
+    setPlaybackRate,
     togglePlayback,
     seek,
   } = useAudioController(handleMediaEnded);
@@ -336,10 +337,12 @@ export default function App() {
           isPlaying={playback.isPlaying}
           isPlaybackReady={playback.isReady}
           playbackError={playback.error}
+          playbackRate={playback.playbackRate}
           exportDisabled={completedSegmentCount === 0}
           undoDisabled={!canUndo}
           redoDisabled={!canRedo}
           onTogglePlayback={() => void togglePlayback()}
+          onPlaybackRateChange={setPlaybackRate}
           onSeek={seek}
           onUndo={undo}
           onRedo={redo}
