@@ -107,7 +107,7 @@ export function LyricsPanel({
     if (!addPanelState) return;
     addInputRef.current?.focus();
     addInputRef.current?.select();
-  }, [addPanelState]);
+  }, [addPanelState != null]);
 
   useEffect(() => {
     if (!editState) return;
