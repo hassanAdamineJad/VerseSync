@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { formatTime, type CompletedSegment, type EditorState } from '../editor';
+import {
+  formatTime,
+  getMergeLineWithNextBlockReason,
+  type CompletedSegment,
+  type EditorState,
+} from '../editor';
 import { formatTimecode, parseTimecode } from '../timecode';
 
 type Props = {
   editor: EditorState;
   dragPreviewSegments: CompletedSegment[] | null;
+  selectedSegmentCount: number;
   onApply: (lineId: string, startMs: number, endMs: number) => void;
   onRemoveTiming: (lineId: string) => void;
+  onMergeWithNext: (lineId: string) => void;
 };
 
 type FieldErrors = {
@@ -53,8 +60,10 @@ function validateTimingInputs(
 export function SegmentInspector({
   editor,
   dragPreviewSegments,
+  selectedSegmentCount,
   onApply,
   onRemoveTiming,
+  onMergeWithNext,
 }: Props) {
   const selectedLine = editor.document.lines.find(
     (line) => line.id === editor.selectedLineId,
@@ -118,6 +127,11 @@ export function SegmentInspector({
   };
 
   const applyDisabled = !selectedLine || !segment || !startDraft.trim() || !endDraft.trim();
+  const mergeBlockReason = getMergeLineWithNextBlockReason(
+    editor,
+    selectedLine?.id ?? null,
+    selectedSegmentCount,
+  );
 
   return (
     <aside className="inspector-panel" aria-labelledby="inspector-title">
@@ -215,6 +229,19 @@ export function SegmentInspector({
               ) : null}
             </div>
           )}
+
+          <button
+            type="button"
+            className="inspector-secondary-action inspector-merge-action"
+            disabled={mergeBlockReason != null}
+            title={mergeBlockReason ?? 'Merge this line with the next lyric line'}
+            onClick={() => {
+              if (!selectedLine) return;
+              onMergeWithNext(selectedLine.id);
+            }}
+          >
+            Merge with next
+          </button>
         </div>
       )}
     </aside>

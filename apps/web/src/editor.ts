@@ -56,6 +56,7 @@ export type EditorAction =
   | { type: 'editLineText'; lineId: string; text: string }
   | { type: 'deleteLine'; lineId: string }
   | { type: 'removeTiming'; lineId: string }
+  | { type: 'mergeLineWithNext'; lineId: string }
   | { type: 'stamp'; atMs: number }
   | { type: 'finish'; atMs: number }
   | { type: 'mediaEnded'; durationMs: number }
@@ -520,6 +521,128 @@ function deleteLine(state: EditorState, lineId: string): EditorState {
   };
 }
 
+function hasOverlappingSegments(segments: Record<string, CompletedSegment>): boolean {
+  return Object.values(segments).some((segment, index, allSegments) =>
+    allSegments.some(
+      (otherSegment, otherIndex) =>
+        otherIndex > index &&
+        segment.startMs < otherSegment.endMs &&
+        segment.endMs > otherSegment.startMs,
+    ),
+  );
+}
+
+export function getMergeLineWithNextBlockReason(
+  state: EditorState,
+  lineId: string | null,
+  selectedSegmentCount: number,
+): string | null {
+  if (selectedSegmentCount > 1) {
+    return 'Select a single lyric line before merging.';
+  }
+  if (!lineId) {
+    return 'Select a completed or untimed lyric line to merge it with the next line.';
+  }
+
+  const lineIndex = state.document.lines.findIndex((line) => line.id === lineId);
+  if (lineIndex < 0) {
+    return 'Select a completed or untimed lyric line to merge it with the next line.';
+  }
+  if (lineIndex === state.document.lines.length - 1) {
+    return 'This is the last lyric line, so there is nothing to merge with.';
+  }
+
+  const nextLine = state.document.lines[lineIndex + 1];
+  if (!nextLine) {
+    return 'This is the last lyric line, so there is nothing to merge with.';
+  }
+
+  const openLineId = state.openSegment?.lineId;
+  if (openLineId === lineId || openLineId === nextLine.id) {
+    return 'Finish the current capture before merging these lines.';
+  }
+
+  return null;
+}
+
+function mergeLineWithNext(state: EditorState, lineId: string): EditorState {
+  const blockReason = getMergeLineWithNextBlockReason(state, lineId, 1);
+  if (blockReason) {
+    return { ...state, message: blockReason };
+  }
+
+  const lineIndex = state.document.lines.findIndex((line) => line.id === lineId);
+  const current = state.document.lines[lineIndex];
+  const next = state.document.lines[lineIndex + 1];
+  if (!current || !next) return state;
+
+  const currentSegment = state.segments[current.id];
+  const nextSegment = state.segments[next.id];
+  const nextLines = reindexLines([
+    ...state.document.lines.slice(0, lineIndex),
+    {
+      ...current,
+      text: `${current.text.trim()} ${next.text.trim()}`,
+    },
+    ...state.document.lines.slice(lineIndex + 2),
+  ]);
+
+  const { [next.id]: _removed, ...segmentsWithoutNext } = state.segments;
+  const nextSegments = { ...segmentsWithoutNext };
+
+  if (currentSegment && nextSegment) {
+    nextSegments[current.id] = {
+      lineId: current.id,
+      startMs: Math.min(currentSegment.startMs, nextSegment.startMs),
+      endMs: Math.max(currentSegment.endMs, nextSegment.endMs),
+    };
+  } else if (!currentSegment && nextSegment) {
+    nextSegments[current.id] = {
+      lineId: current.id,
+      startMs: nextSegment.startMs,
+      endMs: nextSegment.endMs,
+    };
+  }
+
+  const lookupState = {
+    ...state,
+    document: {
+      ...state.document,
+      lines: nextLines,
+    },
+    segments: nextSegments,
+    selectedLineId: current.id,
+  };
+
+  let captureCursorLineId = state.captureCursorLineId;
+  if (state.openSegment) {
+    captureCursorLineId =
+      nextUntimedLineId(lookupState, state.openSegment.lineId, nextSegments) ??
+      firstUntimedLineId(lookupState, nextSegments);
+  } else if (
+    captureCursorLineId === next.id ||
+    (captureCursorLineId === current.id && nextSegments[current.id] != null)
+  ) {
+    captureCursorLineId =
+      nextUntimedLineId(lookupState, current.id, nextSegments) ??
+      firstUntimedLineId(lookupState, nextSegments);
+  } else if (
+    captureCursorLineId != null &&
+    !nextLines.some((line) => line.id === captureCursorLineId)
+  ) {
+    captureCursorLineId = firstUntimedLineId(lookupState, nextSegments);
+  }
+
+  return {
+    ...lookupState,
+    captureCursorLineId,
+    message: hasOverlappingSegments(nextSegments)
+      ? 'Lines merged. This line overlaps another completed line.'
+      : 'Lines merged.',
+    dirty: true,
+  };
+}
+
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'select': {
@@ -547,6 +670,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return deleteLine(state, action.lineId);
     case 'removeTiming':
       return removeTiming(state, action.lineId);
+    case 'mergeLineWithNext':
+      return mergeLineWithNext(state, action.lineId);
     case 'stamp':
       return stamp(state, action.atMs);
     case 'finish':

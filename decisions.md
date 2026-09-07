@@ -173,3 +173,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** A consistent maintained icon set is preferable to accumulating handwritten SVG paths, and direct imports keep the dependency scope limited.
 - **Rejected alternatives:** Continuing to add one-off inline SVG paths and introducing a full UI component library just to standardize icons.
 - **Consequences:** Action icons now share one visual source and must stay explicitly named at the import site rather than pulling in an icon namespace.
+
+### 2026-09-07 — Decision: Merge with next keeps the first line identity and combines timing conservatively
+
+- **Context:** The editor needed a single-line merge action that works for both timed and untimed lyric lines without breaking stable lyric identities, capture state, timeline selection, or LRC export.
+- **Choice:** Add one atomic `mergeLineWithNext` reducer action that keeps the current line's `id`, removes the immediately following line, joins their trimmed text with one space, and derives merged timing by preserving the only completed segment when exactly one exists or by spanning `min(startMs)` to `max(endMs)` when both lines are completed.
+- **Rationale:** Keeping the first line identity preserves stable references across selection, export, and later edits, while the conservative timing span avoids discarding known timing information or inventing boundaries for untimed content.
+- **Rejected alternatives:** Generating a new merged line ID, preserving the second line instead of the first, requiring both lines to be timed before merging, and recalculating timing from text length or waveform heuristics.
+- **Consequences:** Merge remains safe to expose from the inspector for single-line selections, removed-line segment selections and previews must be cleared or filtered away, and LRC export naturally emits only the surviving merged line because export still resolves text by live `lineId`.

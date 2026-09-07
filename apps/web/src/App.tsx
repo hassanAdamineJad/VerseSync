@@ -31,6 +31,7 @@ function sessionReducer(state: EditorState | null, action: SessionAction): Edito
 export default function App() {
   const [editor, dispatch] = useReducer(sessionReducer, null);
   const [dragPreviewSegments, setDragPreviewSegments] = useState<CompletedSegment[] | null>(null);
+  const [selectedSegmentCount, setSelectedSegmentCount] = useState(0);
   const [isChangingTrack, setIsChangingTrack] = useState(false);
 
   const handleMediaEnded = useCallback((durationMs: number) => {
@@ -120,6 +121,10 @@ export default function App() {
     setDragPreviewSegments(null);
     dispatch({ type: 'removeTiming', lineId });
   }, []);
+  const mergeLineWithNext = useCallback((lineId: string) => {
+    resetWorkspacePreviews();
+    dispatch({ type: 'mergeLineWithNext', lineId });
+  }, [resetWorkspacePreviews]);
   const closeTrackSetup = useCallback(() => {
     cancelReplacement();
     setIsChangingTrack(false);
@@ -212,6 +217,7 @@ export default function App() {
             dragPreviewSegments={dragPreviewSegments}
             linePlacementPreview={linePlacementPreview}
             currentTimeMs={playback.currentTimeMs}
+            onSelectedSegmentCountChange={setSelectedSegmentCount}
             onSelectSegment={(lineId: string) => dispatch({ type: 'inspect', lineId })}
             onPreviewSegmentDrag={(segments: CompletedSegment[]) =>
               setDragPreviewSegments(segments)
@@ -229,10 +235,12 @@ export default function App() {
           <SegmentInspector
             editor={editor}
             dragPreviewSegments={dragPreviewSegments}
+            selectedSegmentCount={selectedSegmentCount}
             onApply={(lineId: string, startMs: number, endMs: number) =>
               dispatch({ type: 'editSegment', lineId, startMs, endMs })
             }
             onRemoveTiming={removeTiming}
+            onMergeWithNext={mergeLineWithNext}
           />
         </div>
       </div>

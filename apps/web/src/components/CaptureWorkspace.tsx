@@ -26,6 +26,7 @@ type Props = {
   dragPreviewSegments: CompletedSegment[] | null;
   linePlacementPreview: LinePlacementPreview;
   currentTimeMs: number;
+  onSelectedSegmentCountChange: (count: number) => void;
   onSelectSegment: (lineId: string) => void;
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
@@ -48,6 +49,7 @@ export function CaptureWorkspace({
   dragPreviewSegments,
   linePlacementPreview,
   currentTimeMs,
+  onSelectedSegmentCountChange,
   onSelectSegment,
   onPreviewSegmentDrag,
   onCommitSegmentDrag,
@@ -113,6 +115,7 @@ export function CaptureWorkspace({
         dragPreviewSegments={dragPreviewSegments}
         linePlacementPreview={linePlacementPreview}
         currentTimeMs={currentTimeMs}
+        onSelectedSegmentCountChange={onSelectedSegmentCountChange}
         onSelectSegment={onSelectSegment}
         onPreviewSegmentDrag={onPreviewSegmentDrag}
         onCommitSegmentDrag={onCommitSegmentDrag}

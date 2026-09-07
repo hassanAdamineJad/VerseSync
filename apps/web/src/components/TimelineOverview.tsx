@@ -14,6 +14,7 @@ type Props = {
     snapTargetMs: number | null;
   } | null;
   currentTimeMs: number;
+  onSelectedSegmentCountChange: (count: number) => void;
   onSelectSegment: (lineId: string) => void;
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
@@ -221,6 +222,7 @@ export function TimelineOverview({
   dragPreviewSegments,
   linePlacementPreview,
   currentTimeMs,
+  onSelectedSegmentCountChange,
   onSelectSegment,
   onPreviewSegmentDrag,
   onCommitSegmentDrag,
@@ -317,6 +319,10 @@ export function TimelineOverview({
       return next;
     });
   }, [editor.selectedLineId, editor.segments, selectedLineIdSet]);
+
+  useEffect(() => {
+    onSelectedSegmentCountChange(selectedLineIds.length);
+  }, [onSelectedSegmentCountChange, selectedLineIds.length]);
 
   const ticks = useMemo(
     () => buildRulerTicks(visibleStartMs, visibleEndMs),
