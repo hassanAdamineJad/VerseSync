@@ -197,3 +197,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** Keeping the first line identity preserves existing references and history semantics, while an explicit editable draft avoids incorrect automatic wording changes and makes the final split text an intentional user decision.
 - **Rejected alternatives:** Auto-splitting text by heuristic word boundaries without confirmation, creating two brand-new IDs, and allowing edge-aligned split times that would create zero-length segments.
 - **Consequences:** Split can be one authored history step with reliable Undo/Redo behavior, invalid drafts stay local to the inspector until corrected, and LRC export naturally emits two ordered entries because document order and segment boundaries remain explicit.
+
+### 2026-09-07 — Decision: Use the sidebar grip for both lyric reordering and untimed timeline placement
+
+- **Context:** The lyric sheet needed drag-to-reorder without sacrificing the existing untimed drag-to-place workflow, while completed lines must stay reorderable but never create duplicate placements on the timeline.
+- **Choice:** Keep one shared grip affordance on every lyric row, interpret drops between sidebar rows as one atomic `reorderLine` document action, and keep drops onto the timeline lane as placement only for untimed non-capturing lines.
+- **Rationale:** One handle keeps the interaction compact and predictable, stable line IDs let reorder preserve selection, timing, and any open capture state safely, and routing by drop target avoids introducing a second drag affordance or mode toggle.
+- **Rejected alternatives:** Separate reorder and placement handles, disabling reordering during active capture, regenerating IDs on reorder, and automatically retiming or reselecting lines after moving them.
+- **Consequences:** Drag cleanup must clear sidebar insertion indicators, placement ghosts, and pointer state on every exit path; capture progression now follows the new document order because `captureCursorLineId` is recomputed against the reordered lines when needed; Undo/Redo treat each successful reorder as one authored history step.

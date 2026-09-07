@@ -12,15 +12,18 @@ type Props = {
   editor: EditorState;
   playingLineId: string | null;
   activePlacementLineId: string | null;
+  lineReorderInsertionIndex: number | null;
   onSelect: (lineId: string) => void;
   onInspect: (lineId: string) => void;
   onAddLine: (afterLineId: string | null, text: string) => void;
   onEditLineText: (lineId: string, text: string) => void;
+  onReorderLine: (lineId: string, toIndex: number) => void;
   onDeleteLine: (lineId: string) => void;
   onStartPlacementDrag: (
     lineId: string,
     lineIndex: number,
     text: string,
+    lyricsListElement: HTMLOListElement | null,
     pointerId: number,
     clientX: number,
     clientY: number,
@@ -49,10 +52,12 @@ export function LyricsPanel({
   editor,
   playingLineId,
   activePlacementLineId,
+  lineReorderInsertionIndex,
   onSelect,
   onInspect,
   onAddLine,
   onEditLineText,
+  onReorderLine,
   onDeleteLine,
   onStartPlacementDrag,
   onPlacementDragLostPointerCapture,
@@ -207,6 +212,15 @@ export function LyricsPanel({
     onDeleteLine(lineId);
   };
 
+  const moveLineByKeyboard = (lineId: string, delta: -1 | 1) => {
+    const currentIndex = editor.document.lines.findIndex((line) => line.id === lineId);
+    if (currentIndex < 0) return;
+    const nextIndex = currentIndex + delta;
+    if (nextIndex < 0 || nextIndex >= editor.document.lines.length) return;
+    focusSelectedRowAfterRenderRef.current = true;
+    onReorderLine(lineId, nextIndex);
+  };
+
   return (
     <section className="lyrics-panel" aria-labelledby="lyrics-title">
       <div className="section-heading lyrics-heading">
@@ -297,45 +311,64 @@ export function LyricsPanel({
 
           return (
             <li key={line.id} className="lyric-row-stack">
+              {lineReorderInsertionIndex === line.index ? (
+                <div className="lyric-reorder-indicator" aria-hidden="true" />
+              ) : null}
               <div
+                data-lyric-row="true"
                 className="lyric-row-card"
                 data-selected={isSelected || undefined}
                 data-editing={isEditing || undefined}
                 data-playing={isPlaying || undefined}
               >
                 <div className="lyric-row-main">
-                  {canPlaceOnTimeline ? (
-                    <button
-                      type="button"
-                      className="lyric-drag-handle"
-                      data-dragging={activePlacementLineId === line.id || undefined}
-                      title="Drag onto timeline to place"
-                      aria-label={`Drag ${line.text} onto timeline to place`}
-                      onClick={(event) => {
+                  <button
+                    type="button"
+                    className="lyric-drag-handle"
+                    data-dragging={activePlacementLineId === line.id || undefined}
+                    title={
+                      canPlaceOnTimeline
+                        ? 'Drag to reorder or place this untimed line on the timeline'
+                        : 'Drag to reorder this lyric line'
+                    }
+                    aria-label={
+                      canPlaceOnTimeline
+                        ? `Reorder or drag lyric line ${line.text}`
+                        : `Reorder lyric line ${line.text}`
+                    }
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+                      if (!event.altKey) return;
+                      if (event.key === 'ArrowUp') {
                         event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      onPointerDown={(event) => {
-                        if (event.button !== 0) return;
-                        onStartPlacementDrag(
-                          line.id,
-                          line.index,
-                          line.text,
-                          event.pointerId,
-                          event.clientX,
-                          event.clientY,
-                        );
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                      }}
-                      onLostPointerCapture={(event) => {
-                        onPlacementDragLostPointerCapture(event.pointerId);
-                      }}
-                    >
-                      <GripVertical aria-hidden="true" size={16} strokeWidth={1.9} />
-                    </button>
-                  ) : (
-                    <span className="lyric-drag-spacer" aria-hidden="true" />
-                  )}
+                        moveLineByKeyboard(line.id, -1);
+                      } else if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        moveLineByKeyboard(line.id, 1);
+                      }
+                    }}
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) return;
+                      onStartPlacementDrag(
+                        line.id,
+                        line.index,
+                        line.text,
+                        listRef.current,
+                        event.pointerId,
+                        event.clientX,
+                        event.clientY,
+                      );
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                    }}
+                    onLostPointerCapture={(event) => {
+                      onPlacementDragLostPointerCapture(event.pointerId);
+                    }}
+                  >
+                    <GripVertical aria-hidden="true" size={16} strokeWidth={1.9} />
+                  </button>
 
                   <button
                     type="button"
@@ -411,6 +444,16 @@ export function LyricsPanel({
                       aria-label="Edit lyric text"
                       aria-pressed={isSelected}
                       title={line.text}
+                      onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+                        if (!event.altKey) return;
+                        if (event.key === 'ArrowUp') {
+                          event.preventDefault();
+                          moveLineByKeyboard(line.id, -1);
+                        } else if (event.key === 'ArrowDown') {
+                          event.preventDefault();
+                          moveLineByKeyboard(line.id, 1);
+                        }
+                      }}
                       onClick={() => openEditor(line.id, line.text)}
                     >
                       <span className="lyric-text-display">{line.text}</span>
@@ -479,6 +522,11 @@ export function LyricsPanel({
             </li>
           );
         })}
+        {lineReorderInsertionIndex === editor.document.lines.length ? (
+          <li aria-hidden="true" className="lyric-row-stack">
+            <div className="lyric-reorder-indicator" />
+          </li>
+        ) : null}
       </ol>
     </section>
   );

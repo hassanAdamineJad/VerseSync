@@ -638,6 +638,12 @@ kbd {
   @apply grid gap-2;
 }
 
+.lyric-reorder-indicator {
+  @apply h-0 border-t-2 border-amber-300/90;
+  margin-left: 2.75rem;
+  box-shadow: 0 0 0 1px rgba(248, 197, 106, 0.14);
+}
+
 .lyric-row-card {
   @apply grid min-w-0 gap-1 rounded-xl border border-ink-700/80 bg-ink-900/72 px-2.5 py-2 transition-colors;
 }

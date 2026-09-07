@@ -54,6 +54,7 @@ export type EditorAction =
   | { type: 'inspect'; lineId: string }
   | { type: 'addLine'; afterLineId: string | null; text: string }
   | { type: 'editLineText'; lineId: string; text: string }
+  | { type: 'reorderLine'; lineId: string; toIndex: number }
   | { type: 'deleteLine'; lineId: string }
   | { type: 'removeTiming'; lineId: string }
   | { type: 'mergeLineWithNext'; lineId: string }
@@ -478,6 +479,53 @@ function editLineText(
   };
 }
 
+function reorderLine(state: EditorState, lineId: string, toIndex: number): EditorState {
+  const currentIndex = state.document.lines.findIndex((line) => line.id === lineId);
+  if (currentIndex < 0) return state;
+
+  const linesWithoutCurrent = state.document.lines.filter((line) => line.id !== lineId);
+  const clampedIndex = Math.min(Math.max(0, toIndex), linesWithoutCurrent.length);
+  if (clampedIndex === currentIndex) return state;
+
+  const movedLine = state.document.lines[currentIndex];
+  if (!movedLine) return state;
+
+  const nextLines = reindexLines([
+    ...linesWithoutCurrent.slice(0, clampedIndex),
+    movedLine,
+    ...linesWithoutCurrent.slice(clampedIndex),
+  ]);
+
+  const nextState = {
+    ...state,
+    document: {
+      ...state.document,
+      lines: nextLines,
+    },
+    selectedLineId: state.selectedLineId,
+  };
+
+  let captureCursorLineId = state.captureCursorLineId;
+  if (state.openSegment) {
+    captureCursorLineId =
+      nextUntimedLineId(nextState, state.openSegment.lineId, state.segments) ??
+      firstUntimedLineId(nextState, state.segments);
+  } else if (
+    captureCursorLineId != null &&
+    !nextLines.some((line) => line.id === captureCursorLineId)
+  ) {
+    captureCursorLineId =
+      firstUntimedLineId(nextState, state.segments) ?? state.selectedLineId;
+  }
+
+  return {
+    ...nextState,
+    captureCursorLineId,
+    message: 'Lyric line reordered.',
+    dirty: true,
+  };
+}
+
 function removeTiming(state: EditorState, lineId: string): EditorState {
   if (!state.segments[lineId]) {
     return { ...state, message: 'Only completed lines can have timing removed.' };
@@ -774,6 +822,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return addLine(state, action.afterLineId, action.text);
     case 'editLineText':
       return editLineText(state, action.lineId, action.text);
+    case 'reorderLine':
+      return reorderLine(state, action.lineId, action.toIndex);
     case 'deleteLine':
       return deleteLine(state, action.lineId);
     case 'removeTiming':

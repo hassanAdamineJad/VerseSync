@@ -133,6 +133,7 @@ export default function App() {
 
   const {
     linePlacementPreview,
+    lineReorderInsertionIndex,
     beginPlacementDrag,
     cancelPlacementDrag,
     handleTimelineLaneMetricsChange,
@@ -146,6 +147,10 @@ export default function App() {
         startMs: segment.startMs,
         endMs: segment.endMs,
       });
+    },
+    onReorderLine: (lineId, toIndex) => {
+      setDragPreviewSegments(null);
+      dispatch({ type: 'reorderLine', lineId, toIndex });
     },
   });
 
@@ -236,6 +241,10 @@ export default function App() {
   const editLineText = useCallback((lineId: string, text: string) => {
     dispatch({ type: 'editLineText', lineId, text });
   }, []);
+  const reorderLine = useCallback((lineId: string, toIndex: number) => {
+    resetWorkspacePreviews();
+    dispatch({ type: 'reorderLine', lineId, toIndex });
+  }, [resetWorkspacePreviews]);
   const deleteLine = useCallback((lineId: string) => {
     setDragPreviewSegments(null);
     cancelPlacementDrag();
@@ -348,10 +357,12 @@ export default function App() {
             editor={editor}
             playingLineId={playingLineId}
             activePlacementLineId={linePlacementPreview?.lineId ?? null}
+            lineReorderInsertionIndex={lineReorderInsertionIndex}
             onSelect={(lineId: string) => dispatch({ type: 'select', lineId })}
             onInspect={(lineId: string) => dispatch({ type: 'inspect', lineId })}
             onAddLine={addLine}
             onEditLineText={editLineText}
+            onReorderLine={reorderLine}
             onDeleteLine={deleteLine}
             onStartPlacementDrag={beginPlacementDrag}
             onPlacementDragLostPointerCapture={(pointerId: number) => {
