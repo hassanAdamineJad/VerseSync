@@ -1,4 +1,4 @@
-import { Download } from 'lucide-react';
+import { Download, Redo2, Undo2 } from 'lucide-react';
 import { formatTime } from '../editor';
 
 type Props = {
@@ -10,8 +10,12 @@ type Props = {
   isPlaybackReady: boolean;
   playbackError: string | null;
   exportDisabled: boolean;
+  undoDisabled: boolean;
+  redoDisabled: boolean;
   onTogglePlayback: () => void;
   onSeek: (nextMs: number) => void;
+  onUndo: () => void;
+  onRedo: () => void;
   onExportLrc: () => void;
   onChangeTrack: () => void;
 };
@@ -25,8 +29,12 @@ export function WorkspaceHeader({
   isPlaybackReady,
   playbackError,
   exportDisabled,
+  undoDisabled,
+  redoDisabled,
   onTogglePlayback,
   onSeek,
+  onUndo,
+  onRedo,
   onExportLrc,
   onChangeTrack,
 }: Props) {
@@ -86,6 +94,26 @@ export function WorkspaceHeader({
           ) : null}
         </div>
         <div className="toolbar-action-buttons">
+          <button
+            type="button"
+            className="toolbar-history-button"
+            onClick={onUndo}
+            disabled={undoDisabled}
+            aria-label="Undo"
+            title="Undo (Ctrl/Cmd+Z)"
+          >
+            <Undo2 aria-hidden="true" size={16} strokeWidth={1.9} />
+          </button>
+          <button
+            type="button"
+            className="toolbar-history-button"
+            onClick={onRedo}
+            disabled={redoDisabled}
+            aria-label="Redo"
+            title="Redo (Ctrl/Cmd+Shift+Z, Ctrl+Y)"
+          >
+            <Redo2 aria-hidden="true" size={16} strokeWidth={1.9} />
+          </button>
           <button
             type="button"
             className="toolbar-export-button"

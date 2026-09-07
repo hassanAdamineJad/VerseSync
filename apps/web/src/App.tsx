@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useState } from 'react';
 import { CaptureWorkspace } from './components/CaptureWorkspace';
 import { LinePlacementGhost } from './components/LinePlacementGhost';
 import { LyricsPanel } from './components/LyricsPanel';
@@ -21,18 +21,100 @@ import {
   useAudioController,
 } from './hooks/useAudioController';
 
-type SessionAction = EditorAction | { type: 'replaceDocument'; document: EditorDocument };
+type EditorHistoryState = {
+  past: EditorState[];
+  present: EditorState | null;
+  future: EditorState[];
+};
 
-function sessionReducer(state: EditorState | null, action: SessionAction): EditorState | null {
-  if (action.type === 'replaceDocument') return createEditorState(action.document);
-  return state ? editorReducer(state, action) : state;
+type SessionAction =
+  | EditorAction
+  | { type: 'replaceDocument'; document: EditorDocument }
+  | { type: 'undo' }
+  | { type: 'redo' };
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('input, textarea, select, [contenteditable="true"]') != null
+  );
+}
+
+function isHistoryTrackedAction(action: EditorAction): boolean {
+  return action.type !== 'select' && action.type !== 'inspect' && action.type !== 'clearMessage';
+}
+
+function didAuthoredEditorStateChange(previous: EditorState, next: EditorState): boolean {
+  return (
+    previous.document !== next.document ||
+    previous.segments !== next.segments ||
+    previous.openSegment !== next.openSegment ||
+    previous.selectedLineId !== next.selectedLineId ||
+    previous.captureCursorLineId !== next.captureCursorLineId ||
+    previous.dirty !== next.dirty
+  );
+}
+
+function sessionReducer(state: EditorHistoryState, action: SessionAction): EditorHistoryState {
+  if (action.type === 'replaceDocument') {
+    return {
+      past: [],
+      present: createEditorState(action.document),
+      future: [],
+    };
+  }
+
+  if (action.type === 'undo') {
+    if (!state.present || state.past.length === 0) return state;
+
+    const previous = state.past[state.past.length - 1];
+    return {
+      past: state.past.slice(0, -1),
+      present: previous,
+      future: [state.present, ...state.future],
+    };
+  }
+
+  if (action.type === 'redo') {
+    if (!state.present || state.future.length === 0) return state;
+
+    const [nextPresent, ...remainingFuture] = state.future;
+    return {
+      past: [...state.past, state.present],
+      present: nextPresent,
+      future: remainingFuture,
+    };
+  }
+
+  if (!state.present) return state;
+
+  const nextPresent = editorReducer(state.present, action);
+  if (nextPresent === state.present) return state;
+
+  if (!isHistoryTrackedAction(action) || !didAuthoredEditorStateChange(state.present, nextPresent)) {
+    return {
+      ...state,
+      present: nextPresent,
+    };
+  }
+
+  return {
+    past: [...state.past, state.present],
+    present: nextPresent,
+    future: [],
+  };
 }
 
 export default function App() {
-  const [editor, dispatch] = useReducer(sessionReducer, null);
+  const [history, dispatch] = useReducer(sessionReducer, {
+    past: [],
+    present: null,
+    future: [],
+  });
   const [dragPreviewSegments, setDragPreviewSegments] = useState<CompletedSegment[] | null>(null);
   const [selectedSegmentCount, setSelectedSegmentCount] = useState(0);
   const [isChangingTrack, setIsChangingTrack] = useState(false);
+  const editor = history.present;
 
   const handleMediaEnded = useCallback((durationMs: number) => {
     dispatch({ type: 'mediaEnded', durationMs });
@@ -72,6 +154,9 @@ export default function App() {
     cancelPlacementDrag();
   }, [cancelPlacementDrag]);
 
+  const canUndo = editor != null && history.past.length > 0;
+  const canRedo = editor != null && history.future.length > 0;
+
   const {
     seededError,
     importError,
@@ -100,6 +185,45 @@ export default function App() {
   const finish = useCallback(() => {
     dispatch({ type: 'finish', atMs: readCurrentTimeMs() });
   }, [readCurrentTimeMs]);
+
+  const undo = useCallback(() => {
+    if (!canUndo) return;
+    resetWorkspacePreviews();
+    dispatch({ type: 'undo' });
+  }, [canUndo, resetWorkspacePreviews]);
+
+  const redo = useCallback(() => {
+    if (!canRedo) return;
+    resetWorkspacePreviews();
+    dispatch({ type: 'redo' });
+  }, [canRedo, resetWorkspacePreviews]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || isEditableTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      const canUsePrimaryShortcut = event.metaKey || event.ctrlKey;
+      if (!canUsePrimaryShortcut) return;
+
+      if (key === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+
+      if (key === 'y' && event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        event.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [redo, undo]);
 
   const playingLineId = editor
     ? getPlayingLineId(editor, playback.currentTimeMs)
@@ -178,8 +302,12 @@ export default function App() {
           isPlaybackReady={playback.isReady}
           playbackError={playback.error}
           exportDisabled={completedSegmentCount === 0}
+          undoDisabled={!canUndo}
+          redoDisabled={!canRedo}
           onTogglePlayback={() => void togglePlayback()}
           onSeek={seek}
+          onUndo={undo}
+          onRedo={redo}
           onExportLrc={exportLrc}
           onChangeTrack={openTrackSetup}
         />
