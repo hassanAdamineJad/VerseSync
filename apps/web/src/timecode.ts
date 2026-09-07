@@ -26,14 +26,14 @@ export function parseTimecode(input: string): TimecodeParseResult {
     return { ok: true, milliseconds: Number(trimmed) };
   }
 
-  const match = trimmed.match(/^(\d+):(\d{2})\.(\d{3})$/);
+  const match = trimmed.match(/^(\d{2,}):(\d{2})\.(\d{1,3})$/);
   if (!match) {
     return { ok: false, error: 'Use mm:ss.SSS or paste a whole millisecond value.' };
   }
 
   const minutes = Number(match[1]);
   const seconds = Number(match[2]);
-  const milliseconds = Number(match[3]);
+  const milliseconds = Number(match[3].padEnd(3, '0'));
 
   if (seconds > 59) {
     return { ok: false, error: 'Seconds must stay between 00 and 59.' };

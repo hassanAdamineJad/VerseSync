@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import {
   formatTime,
   getMergeLineWithNextBlockReason,
@@ -75,6 +80,15 @@ function validateTimingInputs(
   if (errors.start || errors.end) return { ok: false, errors };
 
   return { ok: true, startMs, endMs };
+}
+
+function sanitizeTimecodeDraft(value: string): string {
+  return value.replace(/[^\d:.]/g, '');
+}
+
+function normalizeTimecodeValue(value: string): string | null {
+  const parsed = parseTimecode(value);
+  return parsed.ok ? formatTimecode(parsed.milliseconds) : null;
 }
 
 function getDefaultSplitMs(segment: CompletedSegment, currentTimeMs: number): number {
@@ -221,17 +235,49 @@ export function SegmentInspector({
     onApply(selectedLine.id, validation.startMs, validation.endMs);
   };
 
-  const handleStartChange = (value: string) => {
-    setStartDraft(value);
-    if (errors.start) {
-      setErrors((current) => ({ ...current, start: null }));
+  const handleDraftChange = (field: 'start' | 'end', value: string) => {
+    const sanitizedValue = sanitizeTimecodeDraft(value);
+    if (field === 'start') {
+      setStartDraft(sanitizedValue);
+      if (errors.start) {
+        setErrors((current) => ({ ...current, start: null }));
+      }
+    } else {
+      setEndDraft(sanitizedValue);
+      if (errors.end) {
+        setErrors((current) => ({ ...current, end: null }));
+      }
     }
   };
 
-  const handleEndChange = (value: string) => {
-    setEndDraft(value);
-    if (errors.end) {
-      setErrors((current) => ({ ...current, end: null }));
+  const normalizeDraftOnBlur = (field: 'start' | 'end') => {
+    const draft = field === 'start' ? startDraft : endDraft;
+    const normalizedValue = normalizeTimecodeValue(draft);
+
+    if (normalizedValue) {
+      if (field === 'start') {
+        setStartDraft(normalizedValue);
+        if (errors.start) {
+          setErrors((current) => ({ ...current, start: null }));
+        }
+      } else {
+        setEndDraft(normalizedValue);
+        if (errors.end) {
+          setErrors((current) => ({ ...current, end: null }));
+        }
+      }
+      return;
+    }
+
+    const parsed = parseTimecode(draft);
+    const errorMessage = parsed.ok
+      ? null
+      : `${field === 'start' ? 'Start' : 'End'}: ${parsed.error}`;
+
+    if (field === 'start') {
+      setErrors((current) => ({ ...current, start: errorMessage }));
+    } else {
+      setErrors((current) => ({ ...current, end: errorMessage }));
     }
   };
 
@@ -318,41 +364,53 @@ export function SegmentInspector({
           {segment ? (
             <form onSubmit={handleSubmit}>
               <div className="timing-fields">
-                <label>
-                  Start
+                <label className="timing-field">
+                  <span className="timing-field-label">Start</span>
                   <input
                     ref={startRef}
                     type="text"
                     inputMode="text"
                     value={startDraft}
-                    onChange={(event) => handleStartChange(event.target.value)}
+                    onChange={(event) =>
+                      handleDraftChange('start', event.target.value)
+                    }
+                    onBlur={() => normalizeDraftOnBlur('start')}
                     aria-invalid={errors.start ? 'true' : 'false'}
-                    aria-describedby={errors.start ? startErrorId : undefined}
+                    aria-describedby={startErrorId}
                     placeholder="00:13.252"
                   />
-                  {errors.start ? (
-                    <span id={startErrorId} className="field-error" role="alert">
-                      {errors.start}
-                    </span>
-                  ) : null}
+                  <span
+                    id={startErrorId}
+                    className="field-error"
+                    role={errors.start ? 'alert' : undefined}
+                    aria-hidden={errors.start ? undefined : 'true'}
+                  >
+                    {errors.start ?? '\u00A0'}
+                  </span>
                 </label>
-                <label>
-                  End
+                <label className="timing-field">
+                  <span className="timing-field-label">End</span>
                   <input
                     ref={endRef}
                     type="text"
                     inputMode="text"
                     value={endDraft}
-                    onChange={(event) => handleEndChange(event.target.value)}
+                    onChange={(event) =>
+                      handleDraftChange('end', event.target.value)
+                    }
+                    onBlur={() => normalizeDraftOnBlur('end')}
                     aria-invalid={errors.end ? 'true' : 'false'}
-                    aria-describedby={errors.end ? endErrorId : undefined}
+                    aria-describedby={endErrorId}
                     placeholder="00:16.504"
                   />
-                  {errors.end ? (
-                    <span id={endErrorId} className="field-error" role="alert">
-                      {errors.end}
-                    </span>
-                  ) : null}
+                  <span
+                    id={endErrorId}
+                    className="field-error"
+                    role={errors.end ? 'alert' : undefined}
+                    aria-hidden={errors.end ? undefined : 'true'}
+                  >
+                    {errors.end ?? '\u00A0'}
+                  </span>
                 </label>
               </div>
               <dl className="timing-summary">

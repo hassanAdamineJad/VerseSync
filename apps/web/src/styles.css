@@ -1086,6 +1086,14 @@ input[type="range"]::-webkit-slider-thumb {
   @apply grid grid-cols-2 gap-3;
 }
 
+.timing-field {
+  @apply flex flex-col items-stretch;
+}
+
+.timing-field-label {
+  @apply mb-1;
+}
+
 .timing-fields input {
   @apply font-mono tabular-nums;
 }
@@ -1095,7 +1103,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .field-error {
-  @apply mt-1 text-xs font-medium text-rose-300;
+  @apply mt-1 min-h-10 text-xs font-medium text-rose-300;
 }
 
 .timing-summary {
