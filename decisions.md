@@ -189,3 +189,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This preserves one atomic domain restore boundary for lines, segments, capture cursor, selection, dirty state, and user messages without turning temporary interaction affordances into misleading undo steps.
 - **Rejected alternatives:** A generic reusable history abstraction, recording every reducer action including inspection and validation-message changes, and attempting to interleave playback or preview state into authored history.
 - **Consequences:** Undo and Redo remain predictable for committed edits, shortcuts and buttons must cancel previews before navigation, and history navigation can move between closed and open capture states without seeking, pausing, or otherwise coupling editor restoration to playback.
+
+### 2026-09-07 — Decision: Split keeps the original line identity and requires explicit two-line confirmation
+
+- **Context:** The editor needed a segment split flow that preserves stable lyric identities and timing boundaries while avoiding any silent guess about how one lyric line should be rewritten into two.
+- **Choice:** Add one atomic `splitLine` reducer action that keeps the original line ID for the first result, inserts a new stable line immediately after it, preserves timing as `start -> splitMs` and `splitMs -> end`, and requires the user to confirm exactly two non-empty lyric lines plus a split time strictly inside the existing segment.
+- **Rationale:** Keeping the first line identity preserves existing references and history semantics, while an explicit editable draft avoids incorrect automatic wording changes and makes the final split text an intentional user decision.
+- **Rejected alternatives:** Auto-splitting text by heuristic word boundaries without confirmation, creating two brand-new IDs, and allowing edge-aligned split times that would create zero-length segments.
+- **Consequences:** Split can be one authored history step with reliable Undo/Redo behavior, invalid drafts stay local to the inspector until corrected, and LRC export naturally emits two ordered entries because document order and segment boundaries remain explicit.

@@ -580,7 +580,7 @@ kbd {
 }
 
 .inspector-panel {
-  @apply self-start;
+  @apply flex min-h-0 h-full flex-col overflow-hidden;
   grid-area: inspector;
 }
 
@@ -1031,8 +1031,12 @@ input[type="range"]::-webkit-slider-thumb {
   @apply mt-3 rounded-xl border border-ink-700/80 bg-ink-900/85 p-3 text-stone-200;
 }
 
+.inspector-header {
+  @apply sticky top-0 z-10 shrink-0 bg-ink-850/95 pb-3 backdrop-blur;
+}
+
 .inspector-content {
-  @apply mt-3 grid gap-4;
+  @apply mt-0 grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1 pb-4;
 }
 
 .inspector-lyric {
@@ -1091,6 +1095,23 @@ input[type="range"]::-webkit-slider-thumb {
   @apply mb-0 mt-3 text-stone-400;
 }
 
+.inspector-split-editor {
+  @apply rounded-xl border border-ink-700/80 bg-ink-900/5 p-3;
+}
+
+.inspector-split-editor textarea,
+.inspector-split-editor input {
+  @apply font-mono tabular-nums;
+}
+
+.inspector-split-instruction {
+  @apply m-0 -mt-1 text-xs text-stone-400;
+}
+
+.inspector-split-actions {
+  @apply flex flex-wrap gap-3;
+}
+
 .empty-state {
   @apply mt-4 grid min-h-64 place-items-center p-8 text-stone-400;
 }
@@ -1107,6 +1128,10 @@ input[type="range"]::-webkit-slider-thumb {
   .lyrics-panel,
   .capture-workspace {
     height: auto;
+  }
+
+  .inspector-panel {
+    height: 100%;
   }
 }
 
@@ -1159,6 +1184,23 @@ input[type="range"]::-webkit-slider-thumb {
   .lyrics-panel,
   .capture-workspace {
     height: auto;
+  }
+
+  .inspector-panel {
+    height: auto;
+    overflow: visible;
+  }
+
+  .inspector-header {
+    position: static;
+    padding-bottom: 0;
+    backdrop-filter: none;
+  }
+
+  .inspector-content {
+    overflow: visible;
+    padding-right: 0;
+    padding-bottom: 0;
   }
 
   .timeline-surface {

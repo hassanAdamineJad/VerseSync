@@ -249,6 +249,26 @@ export default function App() {
     resetWorkspacePreviews();
     dispatch({ type: 'mergeLineWithNext', lineId });
   }, [resetWorkspacePreviews]);
+  const splitLine = useCallback(
+    (
+      lineId: string,
+      newLineId: string,
+      firstText: string,
+      secondText: string,
+      splitMs: number,
+    ) => {
+      resetWorkspacePreviews();
+      dispatch({
+        type: 'splitLine',
+        lineId,
+        newLineId,
+        firstText,
+        secondText,
+        splitMs,
+      });
+    },
+    [resetWorkspacePreviews],
+  );
   const closeTrackSetup = useCallback(() => {
     cancelReplacement();
     setIsChangingTrack(false);
@@ -364,11 +384,13 @@ export default function App() {
             editor={editor}
             dragPreviewSegments={dragPreviewSegments}
             selectedSegmentCount={selectedSegmentCount}
+            currentTimeMs={playback.currentTimeMs}
             onApply={(lineId: string, startMs: number, endMs: number) =>
               dispatch({ type: 'editSegment', lineId, startMs, endMs })
             }
             onRemoveTiming={removeTiming}
             onMergeWithNext={mergeLineWithNext}
+            onSplitLine={splitLine}
           />
         </div>
       </div>

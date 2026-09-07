@@ -57,6 +57,14 @@ export type EditorAction =
   | { type: 'deleteLine'; lineId: string }
   | { type: 'removeTiming'; lineId: string }
   | { type: 'mergeLineWithNext'; lineId: string }
+  | {
+      type: 'splitLine';
+      lineId: string;
+      newLineId: string;
+      firstText: string;
+      secondText: string;
+      splitMs: number;
+    }
   | { type: 'stamp'; atMs: number }
   | { type: 'finish'; atMs: number }
   | { type: 'mediaEnded'; durationMs: number }
@@ -565,6 +573,27 @@ export function getMergeLineWithNextBlockReason(
   return null;
 }
 
+export function getSplitLineBlockReason(
+  state: EditorState,
+  lineId: string | null,
+  selectedSegmentCount: number,
+): string | null {
+  if (!lineId) return 'Select one completed lyric segment to split.';
+  if (selectedSegmentCount > 1) return 'Select a single completed lyric segment to split.';
+
+  const line = state.document.lines.find((entry) => entry.id === lineId);
+  const segment = state.segments[lineId];
+  if (!line || !segment) return 'Select one completed lyric segment to split.';
+  if (state.openSegment?.lineId === lineId) {
+    return 'Finish the current capture before splitting this line.';
+  }
+  if (segment.endMs - segment.startMs < 2) {
+    return 'This segment is too short to split into two timed parts.';
+  }
+
+  return null;
+}
+
 function mergeLineWithNext(state: EditorState, lineId: string): EditorState {
   const blockReason = getMergeLineWithNextBlockReason(state, lineId, 1);
   if (blockReason) {
@@ -643,6 +672,85 @@ function mergeLineWithNext(state: EditorState, lineId: string): EditorState {
   };
 }
 
+function splitLine(
+  state: EditorState,
+  lineId: string,
+  newLineId: string,
+  firstText: string,
+  secondText: string,
+  splitMs: number,
+): EditorState {
+  const lineIndex = state.document.lines.findIndex((line) => line.id === lineId);
+  if (lineIndex < 0) return state;
+
+  const blockReason = getSplitLineBlockReason(state, lineId, 1);
+  if (blockReason) {
+    return { ...state, message: blockReason };
+  }
+
+  const segment = state.segments[lineId];
+  const originalLine = state.document.lines[lineIndex];
+  if (!segment || !originalLine) return state;
+
+  const firstTrimmed = firstText.trim();
+  const secondTrimmed = secondText.trim();
+  if (!firstTrimmed || !secondTrimmed) {
+    return { ...state, message: 'Enter two non-empty lyric lines before applying this split.' };
+  }
+  if (!Number.isInteger(splitMs) || splitMs <= segment.startMs || splitMs >= segment.endMs) {
+    return {
+      ...state,
+      message: `Split time must stay strictly between ${formatTime(segment.startMs)} and ${formatTime(segment.endMs)}.`,
+    };
+  }
+
+  const nextLines = reindexLines([
+    ...state.document.lines.slice(0, lineIndex),
+    { ...originalLine, text: firstTrimmed },
+    {
+      id: newLineId,
+      index: lineIndex + 1,
+      text: secondTrimmed,
+    },
+    ...state.document.lines.slice(lineIndex + 1),
+  ]);
+
+  const nextSegments = {
+    ...state.segments,
+    [lineId]: {
+      lineId,
+      startMs: segment.startMs,
+      endMs: splitMs,
+    },
+    [newLineId]: {
+      lineId: newLineId,
+      startMs: splitMs,
+      endMs: segment.endMs,
+    },
+  };
+
+  const nextState = {
+    ...state,
+    document: {
+      ...state.document,
+      lines: nextLines,
+    },
+    segments: nextSegments,
+    selectedLineId: lineId,
+  };
+
+  return {
+    ...nextState,
+    captureCursorLineId:
+      state.captureCursorLineId != null &&
+      nextLines.some((line) => line.id === state.captureCursorLineId)
+        ? state.captureCursorLineId
+        : firstUntimedLineId(nextState, nextSegments),
+    message: 'Line split.',
+    dirty: true,
+  };
+}
+
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'select': {
@@ -672,6 +780,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return removeTiming(state, action.lineId);
     case 'mergeLineWithNext':
       return mergeLineWithNext(state, action.lineId);
+    case 'splitLine':
+      return splitLine(
+        state,
+        action.lineId,
+        action.newLineId,
+        action.firstText,
+        action.secondText,
+        action.splitMs,
+      );
     case 'stamp':
       return stamp(state, action.atMs);
     case 'finish':
