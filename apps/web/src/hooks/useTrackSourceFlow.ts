@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, getSeededTrack } from '../api';
 import {
+  getLocalAudioFileError,
   normalizeLocalTrack,
   normalizeSeededTrack,
   parsePastedLyrics,
@@ -111,6 +112,11 @@ export function useTrackSourceFlow({
     async (file: File, lyrics: string) => {
       setSeededError(null);
       setImportError(null);
+      const audioError = getLocalAudioFileError(file);
+      if (audioError) {
+        setImportError(audioError);
+        return;
+      }
       const parsed = parsePastedLyrics(lyrics);
       if (!parsed.ok) {
         setImportError(parsed.error);

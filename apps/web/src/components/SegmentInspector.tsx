@@ -1,17 +1,11 @@
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from 'react';
-import {
-  formatTime,
   getMergeLineWithNextBlockReason,
   getSplitLineBlockReason,
   type CompletedSegment,
   type EditorState,
-} from '../editor';
-import { formatTimecode, parseTimecode } from '../timecode';
+} from "../editor";
+import { formatTimecode, parseTimecode } from "../timecode";
 
 type Props = {
   editor: EditorState;
@@ -74,7 +68,7 @@ function validateTimingInputs(
     errors.end = `End must be no later than ${maxLabel}.`;
   }
   if (endMs <= startMs) {
-    errors.end = 'End must be later than start.';
+    errors.end = "End must be later than start.";
   }
 
   if (errors.start || errors.end) return { ok: false, errors };
@@ -83,7 +77,7 @@ function validateTimingInputs(
 }
 
 function sanitizeTimecodeDraft(value: string): string {
-  return value.replace(/[^\d:.]/g, '');
+  return value.replace(/[^\d:.]/g, "");
 }
 
 function normalizeTimecodeValue(value: string): string | null {
@@ -91,7 +85,10 @@ function normalizeTimecodeValue(value: string): string | null {
   return parsed.ok ? formatTimecode(parsed.milliseconds) : null;
 }
 
-function getDefaultSplitMs(segment: CompletedSegment, currentTimeMs: number): number {
+function getDefaultSplitMs(
+  segment: CompletedSegment,
+  currentTimeMs: number,
+): number {
   if (segment.startMs < currentTimeMs && currentTimeMs < segment.endMs) {
     return currentTimeMs;
   }
@@ -104,7 +101,9 @@ function validateSplitDraft(
   splitTimeInput: string,
   segment: CompletedSegment,
   durationMs: number,
-): { ok: true; firstText: string; secondText: string; splitMs: number } | { ok: false; errors: SplitFieldErrors } {
+):
+  | { ok: true; firstText: string; secondText: string; splitMs: number }
+  | { ok: false; errors: SplitFieldErrors } {
   const rawParts = value.split(/\r?\n/);
   const textErrors: SplitFieldErrors = {
     text: null,
@@ -112,13 +111,14 @@ function validateSplitDraft(
   };
 
   if (rawParts.length !== 2) {
-    textErrors.text = 'Enter exactly two lyric lines separated by one line break.';
+    textErrors.text =
+      "Enter exactly two lyric lines separated by one line break.";
   }
 
-  const firstText = rawParts[0]?.trim() ?? '';
-  const secondText = rawParts[1]?.trim() ?? '';
+  const firstText = rawParts[0]?.trim() ?? "";
+  const secondText = rawParts[1]?.trim() ?? "";
   if (!textErrors.text && (!firstText || !secondText)) {
-    textErrors.text = 'Both lyric parts must contain text.';
+    textErrors.text = "Both lyric parts must contain text.";
   }
 
   const parsedSplitTime = parseTimecode(splitTimeInput);
@@ -130,7 +130,7 @@ function validateSplitDraft(
     if (splitMs > durationMs) {
       textErrors.splitTime = `Split time must be no later than ${formatTimecode(durationMs)}.`;
     } else if (splitMs <= segment.startMs || splitMs >= segment.endMs) {
-      textErrors.splitTime = 'Split time must be strictly inside this segment.';
+      textErrors.splitTime = "Split time must be strictly inside this segment.";
     }
   }
 
@@ -160,12 +160,18 @@ export function SegmentInspector({
     (line) => line.id === editor.selectedLineId,
   );
   const segment = selectedLine
-    ? (dragPreviewSegments?.find((preview) => preview.lineId === selectedLine.id) ??
-      editor.segments[selectedLine.id])
+    ? (dragPreviewSegments?.find(
+        (preview) => preview.lineId === selectedLine.id,
+      ) ?? editor.segments[selectedLine.id])
     : undefined;
   const isOpen = selectedLine?.id === editor.openSegment?.lineId;
-  const [startDraft, setStartDraft] = useState('');
-  const [endDraft, setEndDraft] = useState('');
+  const committedStartLabel = segment ? formatTimecode(segment.startMs) : "";
+  const committedEndLabel = segment ? formatTimecode(segment.endMs) : "";
+  const committedDurationLabel = segment
+    ? formatTimecode(segment.endMs - segment.startMs)
+    : "";
+  const [startDraft, setStartDraft] = useState("");
+  const [endDraft, setEndDraft] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({ start: null, end: null });
   const [splitEditor, setSplitEditor] = useState<SplitEditorState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -174,16 +180,16 @@ export function SegmentInspector({
   const endRef = useRef<HTMLInputElement>(null);
   const splitTextRef = useRef<HTMLTextAreaElement>(null);
   const splitTimeRef = useRef<HTMLInputElement>(null);
-  const startErrorId = 'segment-inspector-start-error';
-  const endErrorId = 'segment-inspector-end-error';
-  const splitTextErrorId = 'segment-inspector-split-text-error';
-  const splitTimeErrorId = 'segment-inspector-split-time-error';
+  const startErrorId = "segment-inspector-start-error";
+  const endErrorId = "segment-inspector-end-error";
+  const splitTextErrorId = "segment-inspector-split-text-error";
+  const splitTimeErrorId = "segment-inspector-split-time-error";
 
   useEffect(() => {
-    setStartDraft(segment ? formatTimecode(segment.startMs) : '');
-    setEndDraft(segment ? formatTimecode(segment.endMs) : '');
+    setStartDraft(committedStartLabel);
+    setEndDraft(committedEndLabel);
     setErrors({ start: null, end: null });
-  }, [segment?.endMs, segment?.lineId, segment?.startMs]);
+  }, [committedEndLabel, committedStartLabel, segment?.lineId]);
 
   useEffect(() => {
     setSplitEditor(null);
@@ -200,10 +206,11 @@ export function SegmentInspector({
       const contentRect = content.getBoundingClientRect();
       const editorRect = editorForm.getBoundingClientRect();
       const isFullyVisible =
-        editorRect.top >= contentRect.top && editorRect.bottom <= contentRect.bottom;
+        editorRect.top >= contentRect.top &&
+        editorRect.bottom <= contentRect.bottom;
 
       if (!isFullyVisible) {
-        editorForm.scrollIntoView({ block: 'nearest' });
+        editorForm.scrollIntoView({ block: "nearest" });
       }
     });
 
@@ -235,9 +242,9 @@ export function SegmentInspector({
     onApply(selectedLine.id, validation.startMs, validation.endMs);
   };
 
-  const handleDraftChange = (field: 'start' | 'end', value: string) => {
+  const handleDraftChange = (field: "start" | "end", value: string) => {
     const sanitizedValue = sanitizeTimecodeDraft(value);
-    if (field === 'start') {
+    if (field === "start") {
       setStartDraft(sanitizedValue);
       if (errors.start) {
         setErrors((current) => ({ ...current, start: null }));
@@ -250,12 +257,12 @@ export function SegmentInspector({
     }
   };
 
-  const normalizeDraftOnBlur = (field: 'start' | 'end') => {
-    const draft = field === 'start' ? startDraft : endDraft;
+  const normalizeDraftOnBlur = (field: "start" | "end") => {
+    const draft = field === "start" ? startDraft : endDraft;
     const normalizedValue = normalizeTimecodeValue(draft);
 
     if (normalizedValue) {
-      if (field === 'start') {
+      if (field === "start") {
         setStartDraft(normalizedValue);
         if (errors.start) {
           setErrors((current) => ({ ...current, start: null }));
@@ -272,16 +279,17 @@ export function SegmentInspector({
     const parsed = parseTimecode(draft);
     const errorMessage = parsed.ok
       ? null
-      : `${field === 'start' ? 'Start' : 'End'}: ${parsed.error}`;
+      : `${field === "start" ? "Start" : "End"}: ${parsed.error}`;
 
-    if (field === 'start') {
+    if (field === "start") {
       setErrors((current) => ({ ...current, start: errorMessage }));
     } else {
       setErrors((current) => ({ ...current, end: errorMessage }));
     }
   };
 
-  const applyDisabled = !selectedLine || !segment || !startDraft.trim() || !endDraft.trim();
+  const applyDisabled =
+    !selectedLine || !segment || !startDraft.trim() || !endDraft.trim();
   const mergeBlockReason = getMergeLineWithNextBlockReason(
     editor,
     selectedLine?.id ?? null,
@@ -293,6 +301,15 @@ export function SegmentInspector({
     selectedSegmentCount,
   );
   const canShowSplitAction = selectedLine != null && segment != null;
+  const selectedLinePosition =
+    selectedLine != null
+      ? `${selectedLine.index + 1} / ${editor.document.lines.length}`
+      : null;
+  const selectedLineState = isOpen
+    ? "Capturing"
+    : segment
+      ? "Timed"
+      : "Untimed";
 
   const openSplitEditor = () => {
     if (!segment || !selectedLine || splitBlockReason) return;
@@ -348,21 +365,33 @@ export function SegmentInspector({
   return (
     <aside className="inspector-panel" aria-labelledby="inspector-title">
       <div className="inspector-header">
-        <p className="eyebrow">Segment inspector</p>
-        <h2 id="inspector-title">Exact timing</h2>
+        <h2 id="inspector-title">Segment</h2>
+        {selectedLinePosition ? <span>{selectedLinePosition}</span> : null}
       </div>
 
-      {!selectedLine && <p>Select a lyric line to inspect it.</p>}
+      {!selectedLine && (
+        <div className="inspector-empty-state">
+          <p>Select a lyric line to inspect its timing.</p>
+        </div>
+      )}
 
       {selectedLine && (
         <div ref={contentRef} className="inspector-content">
-          <div className="inspector-lyric">
-            <span>Selected line</span>
-            <strong>{selectedLine.text}</strong>
+          <div className="inspector-summary" data-state={selectedLineState.toLowerCase()}>
+            <p className="inspector-lyric">{selectedLine.text}</p>
+            <div className="inspector-meta">
+              <div
+                className="inspector-state"
+                data-state={selectedLineState.toLowerCase()}
+              >
+                <span className="inspector-state-dot" aria-hidden="true" />
+                <span>{selectedLineState}</span>
+              </div>
+            </div>
           </div>
 
           {segment ? (
-            <form onSubmit={handleSubmit}>
+            <form className="inspector-form" onSubmit={handleSubmit}>
               <div className="timing-fields">
                 <label className="timing-field">
                   <span className="timing-field-label">Start</span>
@@ -372,21 +401,22 @@ export function SegmentInspector({
                     inputMode="text"
                     value={startDraft}
                     onChange={(event) =>
-                      handleDraftChange('start', event.target.value)
+                      handleDraftChange("start", event.target.value)
                     }
-                    onBlur={() => normalizeDraftOnBlur('start')}
-                    aria-invalid={errors.start ? 'true' : 'false'}
+                    onBlur={() => normalizeDraftOnBlur("start")}
+                    aria-invalid={errors.start ? "true" : "false"}
                     aria-describedby={startErrorId}
                     placeholder="00:13.252"
                   />
-                  <span
-                    id={startErrorId}
-                    className="field-error"
-                    role={errors.start ? 'alert' : undefined}
-                    aria-hidden={errors.start ? undefined : 'true'}
-                  >
-                    {errors.start ?? '\u00A0'}
-                  </span>
+                  {errors.start ? (
+                    <span
+                      id={startErrorId}
+                      className="field-error"
+                      role="alert"
+                    >
+                      {errors.start}
+                    </span>
+                  ) : null}
                 </label>
                 <label className="timing-field">
                   <span className="timing-field-label">End</span>
@@ -396,166 +426,190 @@ export function SegmentInspector({
                     inputMode="text"
                     value={endDraft}
                     onChange={(event) =>
-                      handleDraftChange('end', event.target.value)
+                      handleDraftChange("end", event.target.value)
                     }
-                    onBlur={() => normalizeDraftOnBlur('end')}
-                    aria-invalid={errors.end ? 'true' : 'false'}
+                    onBlur={() => normalizeDraftOnBlur("end")}
+                    aria-invalid={errors.end ? "true" : "false"}
                     aria-describedby={endErrorId}
                     placeholder="00:16.504"
                   />
-                  <span
-                    id={endErrorId}
-                    className="field-error"
-                    role={errors.end ? 'alert' : undefined}
-                    aria-hidden={errors.end ? undefined : 'true'}
-                  >
-                    {errors.end ?? '\u00A0'}
-                  </span>
+                  {errors.end ? (
+                    <span id={endErrorId} className="field-error" role="alert">
+                      {errors.end}
+                    </span>
+                  ) : null}
                 </label>
               </div>
-              <dl className="timing-summary">
-                <div>
-                  <dt>Start</dt>
-                  <dd>{formatTimecode(segment.startMs)}</dd>
+              <div className="timing-readonly-row">
+                <span>Duration</span>
+                <strong>{committedDurationLabel}</strong>
+              </div>
+              <div className="inspector-action-stack">
+                <button
+                  type="submit"
+                  className="inspector-apply"
+                  disabled={applyDisabled}
+                >
+                  Apply timing
+                </button>
+                <div className="inspector-secondary-actions-row">
+                  <button
+                    type="button"
+                    className="inspector-secondary-button inspector-merge-action"
+                    disabled={mergeBlockReason != null}
+                    title={
+                      mergeBlockReason ??
+                      "Merge this line with the next lyric line"
+                    }
+                    onClick={() => {
+                      if (!selectedLine) return;
+                      onMergeWithNext(selectedLine.id);
+                    }}
+                  >
+                    Merge with next
+                  </button>
+
+                  {canShowSplitAction ? (
+                    <button
+                      type="button"
+                      className="inspector-secondary-button inspector-split-action"
+                      disabled={splitBlockReason != null}
+                      title={
+                        splitBlockReason ??
+                        "Split this lyric line into two timed lines"
+                      }
+                      onClick={openSplitEditor}
+                    >
+                      Split
+                    </button>
+                  ) : null}
                 </div>
-                <div>
-                  <dt>End</dt>
-                  <dd>{formatTimecode(segment.endMs)}</dd>
-                </div>
-                <div>
-                  <dt>Duration</dt>
-                  <dd>{formatTime(segment.endMs - segment.startMs)}</dd>
-                </div>
-              </dl>
-              <button type="submit" className="inspector-apply" disabled={applyDisabled}>
-                Apply exact timing
-              </button>
-              <button
-                type="button"
-                className="inspector-secondary-action"
-                onClick={() => onRemoveTiming(selectedLine.id)}
-              >
-                Remove timing
-              </button>
+                <button
+                  type="button"
+                  className="inspector-secondary-button inspector-split-action"
+                  onClick={() => onRemoveTiming(selectedLine.id)}
+                >
+                  Remove timing
+                </button>
+              </div>
             </form>
           ) : (
-            <div className="inspector-empty">
-              <span className="line-state">{isOpen ? 'Capturing' : 'Untimed'}</span>
+            <div className="inspector-empty-message">
               <p>
                 {isOpen
-                  ? 'Finish this line before editing its exact start and end.'
-                  : 'Capture this line before editing its exact start and end.'}
+                  ? "Finish this capture before editing its timing."
+                  : "Capture or place this line to edit its timing."}
               </p>
-              {!isOpen ? (
-                <p className="inspector-empty-note">
-                  Edit text or delete this line from the selected actions in the lyric sheet.
-                </p>
-              ) : null}
             </div>
           )}
 
-          <button
-            type="button"
-            className="inspector-secondary-action inspector-merge-action"
-            disabled={mergeBlockReason != null}
-            title={mergeBlockReason ?? 'Merge this line with the next lyric line'}
-            onClick={() => {
-              if (!selectedLine) return;
-              onMergeWithNext(selectedLine.id);
-            }}
-          >
-            Merge with next
-          </button>
-
-          {canShowSplitAction ? (
-            <>
+          {!segment ? (
+            <div className="inspector-actions">
               <button
                 type="button"
-                className="inspector-secondary-action inspector-split-action"
-                disabled={splitBlockReason != null}
-                title={splitBlockReason ?? 'Split this lyric line into two timed lines'}
-                onClick={openSplitEditor}
+                className="inspector-secondary-button inspector-merge-action"
+                disabled={mergeBlockReason != null}
+                title={
+                  mergeBlockReason ?? "Merge this line with the next lyric line"
+                }
+                onClick={() => {
+                  if (!selectedLine) return;
+                  onMergeWithNext(selectedLine.id);
+                }}
               >
-                Split
+                Merge with next
               </button>
+            </div>
+          ) : null}
 
-              {splitEditor ? (
-                <form
-                  ref={splitEditorRef}
-                  className="inspector-split-editor"
-                  onSubmit={submitSplit}
+          {canShowSplitAction && splitEditor ? (
+            <form
+              ref={splitEditorRef}
+              className="inspector-split-editor"
+              onSubmit={submitSplit}
+            >
+              <label>
+                <span className="timing-field-label">Split lyrics</span>
+                <textarea
+                  ref={splitTextRef}
+                  rows={3}
+                  value={splitEditor.value}
+                  onChange={(event) =>
+                    setSplitEditor((current) =>
+                      current == null
+                        ? current
+                        : {
+                            ...current,
+                            value: event.target.value,
+                            errors: { ...current.errors, text: null },
+                          },
+                    )
+                  }
+                  aria-invalid={splitEditor.errors.text ? "true" : "false"}
+                  aria-describedby={
+                    splitEditor.errors.text ? splitTextErrorId : undefined
+                  }
+                />
+                {splitEditor.errors.text ? (
+                  <span
+                    id={splitTextErrorId}
+                    className="field-error"
+                    role="alert"
+                  >
+                    {splitEditor.errors.text}
+                  </span>
+                ) : null}
+              </label>
+              <p className="inspector-split-instruction">
+                Divide this lyric into exactly two non-empty lines using one
+                line break.
+              </p>
+              <label>
+                <span className="timing-field-label">Split time</span>
+                <input
+                  ref={splitTimeRef}
+                  type="text"
+                  inputMode="text"
+                  value={splitEditor.splitTime}
+                  onChange={(event) =>
+                    setSplitEditor((current) =>
+                      current == null
+                        ? current
+                        : {
+                            ...current,
+                            splitTime: event.target.value,
+                            errors: { ...current.errors, splitTime: null },
+                          },
+                    )
+                  }
+                  aria-invalid={splitEditor.errors.splitTime ? "true" : "false"}
+                  aria-describedby={
+                    splitEditor.errors.splitTime ? splitTimeErrorId : undefined
+                  }
+                />
+                {splitEditor.errors.splitTime ? (
+                  <span
+                    id={splitTimeErrorId}
+                    className="field-error"
+                    role="alert"
+                  >
+                    {splitEditor.errors.splitTime}
+                  </span>
+                ) : null}
+              </label>
+              <div className="inspector-split-actions">
+                <button type="submit" className="inspector-apply">
+                  Apply split
+                </button>
+                <button
+                  type="button"
+                  className="inspector-secondary-button"
+                  onClick={cancelSplitEditor}
                 >
-                  <label>
-                    Split lyrics
-                    <textarea
-                      ref={splitTextRef}
-                      rows={3}
-                      value={splitEditor.value}
-                      onChange={(event) =>
-                        setSplitEditor((current) =>
-                          current == null
-                            ? current
-                            : {
-                                ...current,
-                                value: event.target.value,
-                                errors: { ...current.errors, text: null },
-                              },
-                        )
-                      }
-                      aria-invalid={splitEditor.errors.text ? 'true' : 'false'}
-                      aria-describedby={splitEditor.errors.text ? splitTextErrorId : undefined}
-                    />
-                    {splitEditor.errors.text ? (
-                      <span id={splitTextErrorId} className="field-error" role="alert">
-                        {splitEditor.errors.text}
-                      </span>
-                    ) : null}
-                  </label>
-                  <p className="inspector-split-instruction">
-                    Divide this lyric into exactly two non-empty lines using one line break.
-                  </p>
-                  <label>
-                    Split time
-                    <input
-                      ref={splitTimeRef}
-                      type="text"
-                      inputMode="text"
-                      value={splitEditor.splitTime}
-                      onChange={(event) =>
-                        setSplitEditor((current) =>
-                          current == null
-                            ? current
-                            : {
-                                ...current,
-                                splitTime: event.target.value,
-                                errors: { ...current.errors, splitTime: null },
-                              },
-                        )
-                      }
-                      aria-invalid={splitEditor.errors.splitTime ? 'true' : 'false'}
-                      aria-describedby={splitEditor.errors.splitTime ? splitTimeErrorId : undefined}
-                    />
-                    {splitEditor.errors.splitTime ? (
-                      <span id={splitTimeErrorId} className="field-error" role="alert">
-                        {splitEditor.errors.splitTime}
-                      </span>
-                    ) : null}
-                  </label>
-                  <div className="inspector-split-actions">
-                    <button type="submit" className="inspector-apply">
-                      Apply split
-                    </button>
-                    <button
-                      type="button"
-                      className="inspector-secondary-action"
-                      onClick={cancelSplitEditor}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-            </>
+                  Cancel
+                </button>
+              </div>
+            </form>
           ) : null}
         </div>
       )}

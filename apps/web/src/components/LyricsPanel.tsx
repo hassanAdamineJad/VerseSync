@@ -5,7 +5,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { Clock3, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
 import { formatTime, type EditorState } from '../editor';
 
 type Props = {
@@ -66,13 +66,21 @@ export function LyricsPanel({
 }: Props) {
   const listRef = useRef<HTMLOListElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const rowContainerRefs = useRef(new Map<string, HTMLDivElement>());
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const suppressNextBlurSaveRef = useRef(false);
   const focusSelectedRowAfterRenderRef = useRef(false);
+  const previousCaptureTargetRef = useRef<string | null>(null);
   const completedCount = Object.keys(editor.segments).length;
   const activeCaptureLineId = editor.openSegment?.lineId ?? null;
+  const captureTargetLineId = activeCaptureLineId ?? editor.captureCursorLineId ?? null;
+  const captureTargetKey = activeCaptureLineId
+    ? `active:${activeCaptureLineId}`
+    : editor.captureCursorLineId
+      ? `next:${editor.captureCursorLineId}`
+      : null;
   const selectedLine =
     editor.document.lines.find((line) => line.id === editor.selectedLineId) ?? null;
   const [addPanelState, setAddPanelState] = useState<AddPanelState>(null);
@@ -80,28 +88,39 @@ export function LyricsPanel({
   const [confirmDeleteState, setConfirmDeleteState] = useState<ConfirmDeleteState>(null);
 
   useEffect(() => {
-    if (!activeCaptureLineId) return;
+    const previousCaptureTarget = previousCaptureTargetRef.current;
+    previousCaptureTargetRef.current = captureTargetKey;
+    if (!captureTargetLineId || !captureTargetKey || previousCaptureTarget === captureTargetKey) return;
 
     const list = listRef.current;
-    const row = rowRefs.current.get(activeCaptureLineId);
+    const row = rowContainerRefs.current.get(captureTargetLineId);
     if (!list || !row) return;
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth';
 
-    const rowTop = row.offsetTop;
-    const rowBottom = rowTop + row.offsetHeight;
-    const visibleTop = list.scrollTop;
-    const visibleBottom = visibleTop + list.clientHeight;
-    const isAbove = rowTop < visibleTop;
-    const isBelow = rowBottom > visibleBottom;
-
-    if (!isAbove && !isBelow) return;
-
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const nextTop = isAbove ? rowTop : rowBottom - list.clientHeight;
-    list.scrollTo({
-      top: nextTop,
-      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    row.scrollIntoView({
+      block: 'nearest',
+      behavior,
     });
-  }, [activeCaptureLineId]);
+
+    window.requestAnimationFrame(() => {
+      const listRect = list.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const rowTop = rowRect.top - listRect.top + list.scrollTop;
+      const rowBottom = rowTop + row.offsetHeight;
+      const visibleTop = list.scrollTop;
+      const visibleBottom = visibleTop + list.clientHeight;
+
+      if (rowTop >= visibleTop && rowBottom <= visibleBottom) return;
+
+      const nextTop = rowTop < visibleTop ? rowTop : rowBottom - list.clientHeight;
+      list.scrollTo({
+        top: nextTop,
+        behavior,
+      });
+    });
+  }, [captureTargetKey, captureTargetLineId]);
 
   useEffect(() => {
     if (!addPanelState) return;
@@ -226,10 +245,7 @@ export function LyricsPanel({
   return (
     <section className="lyrics-panel" aria-labelledby="lyrics-title">
       <div className="section-heading lyrics-heading">
-        <div>
-          <p className="eyebrow">Lyric sheet</p>
-          <h2 id="lyrics-title">Lines</h2>
-        </div>
+        <h2 id="lyrics-title">Lyrics</h2>
         <div className="lyrics-toolbar">
           <span className="line-progress">
             {completedCount} / {editor.document.lines.length} timed
@@ -240,7 +256,6 @@ export function LyricsPanel({
             className="lyrics-add-button"
             onClick={() => setAddPanelState({ value: '', error: null })}
           >
-            <Plus aria-hidden="true" size={14} strokeWidth={2} />
             <span>Add line</span>
           </button>
         </div>
@@ -296,6 +311,8 @@ export function LyricsPanel({
           const isSelected = editor.selectedLineId === line.id;
           const isEditing = editState?.lineId === line.id;
           const isPlaying = playingLineId === line.id;
+          const isActiveCapture = activeCaptureLineId === line.id;
+          const isNeedsAttention = editor.captureCursorLineId === line.id && !isActiveCapture;
           const canPlaceOnTimeline = !segment && editor.openSegment?.lineId !== line.id;
           const canDeleteLine =
             editor.document.lines.length > 1 && editor.openSegment?.lineId !== line.id;
@@ -305,11 +322,12 @@ export function LyricsPanel({
               : editor.document.lines.length === 1
                 ? 'Add another lyric line before deleting the final remaining line.'
                 : null;
-          const timeChipLabel = segment ? formatTime(segment.startMs) : '00:00:00';
+          const timeChipLabel = segment ? formatTime(segment.startMs) : '—';
           const timeChipTitle = segment
             ? `Start time ${formatTime(segment.startMs)}`
-            : 'Not timed';
+            : 'Untimed line';
           const showDeleteConfirmation = confirmDeleteState?.lineId === line.id;
+          const feedbackMessage = isEditing && editState.error ? editState.error : deleteHint;
 
           return (
             <li key={line.id} className="lyric-row-stack">
@@ -319,9 +337,16 @@ export function LyricsPanel({
               <div
                 data-lyric-row="true"
                 className="lyric-row-card"
+                ref={(element) => {
+                  if (element) rowContainerRefs.current.set(line.id, element);
+                  else rowContainerRefs.current.delete(line.id);
+                }}
                 data-selected={isSelected || undefined}
                 data-editing={isEditing || undefined}
                 data-playing={isPlaying || undefined}
+                data-timed={segment != null || undefined}
+                data-active-capture={isActiveCapture || undefined}
+                data-needs-attention={isNeedsAttention || undefined}
                 data-merge-target={lineMergeTargetLineId === line.id || undefined}
               >
                 <div className="lyric-row-main">
@@ -331,8 +356,8 @@ export function LyricsPanel({
                     data-dragging={activePlacementLineId === line.id || undefined}
                     title={
                       canPlaceOnTimeline
-                        ? 'Drag to reorder, merge with an adjacent line, or place this untimed line on the timeline'
-                        : 'Drag to reorder or merge with an adjacent lyric line'
+                        ? 'Drag to reorder, merge, or place on timeline'
+                        : 'Drag to reorder or merge'
                     }
                     aria-label={
                       canPlaceOnTimeline
@@ -381,7 +406,6 @@ export function LyricsPanel({
                     title={timeChipTitle}
                     onClick={() => onSelect(line.id)}
                   >
-                    <Clock3 aria-hidden="true" size={14} strokeWidth={1.9} />
                     <span
                       className="lyric-time-chip-value"
                       data-empty={segment == null || undefined}
@@ -494,13 +518,15 @@ export function LyricsPanel({
                   </div>
                 </div>
 
-                <p
-                  id={`lyric-edit-error-${line.id}`}
-                  className="lyric-row-feedback"
-                  role={isEditing && editState.error ? 'alert' : undefined}
-                >
-                  {isEditing && editState.error ? editState.error : deleteHint ?? '\u00A0'}
-                </p>
+                {feedbackMessage ? (
+                  <p
+                    id={`lyric-edit-error-${line.id}`}
+                    className="lyric-row-feedback"
+                    role={isEditing && editState.error ? 'alert' : undefined}
+                  >
+                    {feedbackMessage}
+                  </p>
+                ) : null}
               </div>
 
               {showDeleteConfirmation ? (

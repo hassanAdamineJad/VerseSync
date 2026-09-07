@@ -25,7 +25,7 @@ test('one-pass capture times the first three lines and leaves the fourth untimed
   await expect(firstSegment).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Two' })).toBeVisible();
   await expect(page.getByText('Opened at 00:03.000')).toBeVisible();
-  await expect(fourthRow.getByRole('button', { name: 'Not timed' })).toBeVisible();
+  await expect(fourthRow.getByRole('button', { name: 'Untimed line' })).toBeVisible();
 
   await setPlaybackPosition(page, 6_000);
   await page.getByRole('button', { name: /Stamp & Next/ }).click();
@@ -50,7 +50,7 @@ test('one-pass capture times the first three lines and leaves the fourth untimed
   await expect(firstRow.getByRole('button', { name: 'Start time 00:00.000' })).toBeVisible();
   await expect(secondRow.getByRole('button', { name: 'Start time 00:03.000' })).toBeVisible();
   await expect(thirdRow.getByRole('button', { name: 'Start time 00:06.000' })).toBeVisible();
-  await expect(fourthRow.getByRole('button', { name: 'Not timed' })).toBeVisible();
+  await expect(fourthRow.getByRole('button', { name: 'Untimed line' })).toBeVisible();
 
   await expect(page.getByText('3 / 4 timed')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Four' })).toBeVisible();

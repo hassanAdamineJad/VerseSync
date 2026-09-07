@@ -66,20 +66,26 @@ export function CaptureWorkspace({
   const openLine = editor.openSegment
     ? editor.document.lines.find((line) => line.id === editor.openSegment?.lineId) ?? null
     : null;
-  const idleLine = editor.document.lines.find(
-    (line) => line.id === (editor.captureCursorLineId ?? editor.selectedLineId),
-  );
-  const captureLine = openLine ?? idleLine ?? null;
-  const openIndex = openLine
-    ? editor.document.lines.findIndex((line) => line.id === openLine.id)
+  const readyLine = editor.captureCursorLineId
+    ? editor.document.lines.find((line) => line.id === editor.captureCursorLineId) ?? null
+    : null;
+  const isComplete = openLine == null && readyLine == null;
+  const captureLine = openLine ?? readyLine ?? null;
+  const activeLineIndex = captureLine
+    ? editor.document.lines.findIndex((line) => line.id === captureLine.id)
     : -1;
   const nextLine =
-    openIndex >= 0
+    activeLineIndex >= 0
       ? editor.document.lines
-          .slice(openIndex + 1)
+          .slice(activeLineIndex + 1)
           .find((line) => editor.segments[line.id] == null)
       : null;
   const isFinalOpenLine = openLine != null && nextLine == null;
+  const previousContextLine =
+    activeLineIndex > 0 ? editor.document.lines[activeLineIndex - 1] ?? null : null;
+  const nextContextLine =
+    activeLineIndex >= 0 ? editor.document.lines[activeLineIndex + 1] ?? null : null;
+  const canStamp = !isComplete && (openLine != null || readyLine != null);
 
   useEffect(() => {
     if (shortcutsDisabled) return;
@@ -91,7 +97,7 @@ export function CaptureWorkspace({
       if (event.code === 'Space') {
         event.preventDefault();
         onTogglePlayback();
-      } else if (event.key.toLowerCase() === 's') {
+      } else if (event.key.toLowerCase() === 's' && canStamp) {
         event.preventDefault();
         onStamp();
       } else if (event.key.toLowerCase() === 'f' && editor.openSegment) {
@@ -101,18 +107,7 @@ export function CaptureWorkspace({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor.openSegment, onFinish, onStamp, onTogglePlayback, shortcutsDisabled]);
-
-  let nextAction = 'Select an untimed line, then stamp its start at the playhead.';
-  if (!editor.openSegment && captureLine) {
-    nextAction = editor.segments[captureLine.id]
-      ? 'This line is already timed. Select an untimed line to continue.'
-      : `The next stamp opens “${captureLine.text}” at the current playhead.`;
-  } else if (openLine && nextLine) {
-    nextAction = `The next stamp closes “${openLine.text}” and opens “${nextLine.text}”.`;
-  } else if (openLine) {
-    nextAction = `Finish Line closes “${openLine.text}” without advancing.`;
-  }
+  }, [canStamp, editor.openSegment, onFinish, onStamp, onTogglePlayback, shortcutsDisabled]);
 
   return (
     <section className="capture-workspace">
@@ -131,48 +126,95 @@ export function CaptureWorkspace({
       />
 
       <section className="capture-card" aria-labelledby="capture-title">
-        <div className="capture-status">
-          <p className="eyebrow">{openLine ? 'Capturing now' : 'Ready to capture'}</p>
-          <h2 id="capture-title">{captureLine?.text ?? 'All lines are timed'}</h2>
-          {openLine && (
-            <span className="capture-start">
-              Opened at {formatTime(editor.openSegment?.startMs ?? 0)}
-            </span>
-          )}
-        </div>
+        <div
+          className="capture-stage"
+          data-state={openLine ? 'capturing' : isComplete ? 'complete' : 'ready'}
+        >
+          <div className="capture-status">
+            <p className="capture-state-label">
+              {openLine ? 'Capturing' : isComplete ? 'Complete' : 'Ready'}
+            </p>
+            {openLine ? (
+              <div className="capture-inline-meta" aria-live="polite">
+                {`Started ${formatTime(editor.openSegment?.startMs ?? 0)}`}
+              </div>
+            ) : (
+              <span className="capture-inline-meta capture-inline-meta-placeholder" aria-hidden="true" />
+            )}
+          </div>
 
-        <p className="next-action">{nextAction}</p>
-
-        <div className="capture-actions">
-          {isFinalOpenLine ? (
-            <button type="button" className="primary-action" onClick={onFinish}>
-              Finish Line
-              <kbd>F</kbd>
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="primary-action"
-              onClick={onStamp}
-              disabled={!captureLine}
+          <div className="capture-context" aria-live="polite">
+            <p className="capture-context-line capture-context-line-prev">
+              {isComplete ? '\u00A0' : (previousContextLine?.text ?? '\u00A0')}
+            </p>
+            <h2 id="capture-title">
+              {isComplete ? 'All lyric lines are timed.' : (captureLine?.text ?? 'All lines are timed')}
+            </h2>
+            <p
+              className={`capture-context-line ${isComplete ? 'capture-context-line-complete' : 'capture-context-line-next'}`}
             >
-              {openLine ? 'Stamp & Next' : 'Stamp'}
-              <kbd>S</kbd>
-            </button>
-          )}
-          {openLine && !isFinalOpenLine && (
-            <button type="button" onClick={onFinish}>
-              Finish Line
-              <kbd>F</kbd>
-            </button>
-          )}
-        </div>
+              {isComplete
+                ? 'Review the alignment or export the LRC file.'
+                : (nextContextLine?.text ?? '\u00A0')}
+            </p>
+          </div>
 
-        {editor.message && (
-          <p className="editor-message" role="status" aria-live="polite">
-            {editor.message}
-          </p>
-        )}
+          <div className="capture-actions">
+            {isComplete ? (
+              <>
+                <span className="capture-primary-placeholder" aria-hidden="true" />
+                <span className="capture-action-placeholder" aria-hidden="true" />
+              </>
+            ) : isFinalOpenLine ? (
+              <button
+                type="button"
+                className="primary-action"
+                onClick={onFinish}
+                aria-label="Finish line"
+                title="Finish line (F)"
+              >
+                Finish
+                <kbd>F</kbd>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary-action"
+                onClick={onStamp}
+                disabled={!canStamp}
+                aria-label={openLine ? 'Stamp and advance to next line' : 'Stamp line start'}
+                title={`${openLine ? 'Stamp & Next' : 'Stamp'} (S)`}
+              >
+                {openLine ? 'Stamp & Next' : 'Stamp'}
+                <kbd>S</kbd>
+              </button>
+            )}
+            {openLine && !isFinalOpenLine ? (
+              <button
+                type="button"
+                className="capture-secondary-action"
+                onClick={onFinish}
+                aria-label="Finish line"
+                title="Finish line (F)"
+              >
+                Finish
+                <kbd>F</kbd>
+              </button>
+            ) : (
+              <span className="capture-action-placeholder" aria-hidden="true" />
+            )}
+          </div>
+
+          <div className="capture-feedback" aria-live="polite">
+            {editor.message ? (
+              <p className="editor-message" role="status">
+                {editor.message}
+              </p>
+            ) : (
+              <span className="capture-feedback-placeholder" aria-hidden="true" />
+            )}
+          </div>
+        </div>
       </section>
     </section>
   );

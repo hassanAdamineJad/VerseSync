@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
-function createSilentWavBuffer(durationSeconds = 20): Buffer {
+export function createSilentWavBuffer(durationSeconds = 20): Buffer {
   const sampleRate = 8_000;
   const channelCount = 1;
   const bitsPerSample = 16;
@@ -30,6 +30,100 @@ function createSilentWavBuffer(durationSeconds = 20): Buffer {
   return buffer;
 }
 
+export type SetupAudioFile = {
+  name: string;
+  mimeType: string;
+  buffer?: Buffer;
+  size?: number;
+};
+
+async function assignSetupAudioFile(
+  page: Page,
+  target: Locator,
+  file: SetupAudioFile,
+  mode: 'picker' | 'drop',
+): Promise<void> {
+  const payload = {
+    name: file.name,
+    mimeType: file.mimeType,
+    size: file.size ?? file.buffer?.byteLength ?? 0,
+    bytes: file.buffer ? Array.from(file.buffer) : null,
+  };
+
+  if (mode === 'picker') {
+    await target.evaluate((node, nextFile) => {
+      const data = nextFile.bytes
+        ? Uint8Array.from(nextFile.bytes)
+        : new ArrayBuffer(nextFile.size);
+      const next = new File([data], nextFile.name, { type: nextFile.mimeType });
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(next);
+      const input = node as HTMLInputElement;
+      input.files = dataTransfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, payload);
+    return;
+  }
+
+  const dataTransfer = await page.evaluateHandle((nextFile) => {
+    const data = nextFile.bytes
+      ? Uint8Array.from(nextFile.bytes)
+      : new ArrayBuffer(nextFile.size);
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([data], nextFile.name, { type: nextFile.mimeType }));
+    return transfer;
+  }, payload);
+
+  await target.dispatchEvent('drop', { dataTransfer });
+  await dataTransfer.dispose();
+}
+
+export async function setSetupAudioFile(
+  page: Page,
+  file?: Partial<SetupAudioFile>,
+): Promise<void> {
+  await assignSetupAudioFile(
+    page,
+    page.getByLabel('Select an audio file'),
+    {
+      name: file?.name ?? 'test-track.wav',
+      mimeType: file?.mimeType ?? 'audio/wav',
+      buffer: file?.buffer ?? (file?.size == null ? createSilentWavBuffer() : undefined),
+      size: file?.size,
+    },
+    'picker',
+  );
+}
+
+export async function dropSetupAudioFile(
+  page: Page,
+  file?: Partial<SetupAudioFile>,
+): Promise<void> {
+  await assignSetupAudioFile(
+    page,
+    page.locator('.setup-file-row'),
+    {
+      name: file?.name ?? 'test-track.wav',
+      mimeType: file?.mimeType ?? 'audio/wav',
+      buffer: file?.buffer ?? (file?.size == null ? createSilentWavBuffer() : undefined),
+      size: file?.size,
+    },
+    'drop',
+  );
+}
+
+export async function fillSetupLyrics(page: Page, lyrics: string): Promise<void> {
+  await page.getByRole('textbox', { name: 'Lyric lines' }).evaluate((node, value) => {
+    const textarea = node as HTMLTextAreaElement;
+    const descriptor = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      'value',
+    );
+    descriptor?.set?.call(textarea, value);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }, lyrics);
+}
+
 export async function openLocalTrack(
   page: Page,
   lyrics: string,
@@ -50,7 +144,7 @@ export async function openLocalTrack(
   });
 
   await page.getByRole('textbox', { name: 'Lyric lines' }).fill(lyrics);
-  await page.getByRole('button', { name: 'Open timing workspace' }).click();
+  await page.getByRole('button', { name: 'Start timing' }).click();
 
   await expect(page.getByText(filename, { exact: true })).toBeVisible();
 }

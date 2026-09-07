@@ -8,6 +8,6 @@ import { test, expect } from '@playwright/test';
 test('the app loads and shows the track title', async ({ page }) => {
   await page.goto('/');
   await expect(
-    page.getByRole('heading', { name: 'Load a track to begin timing lyrics.' }),
+    page.getByRole('heading', { name: 'Time every lyric to the beat.' }),
   ).toBeVisible();
 });

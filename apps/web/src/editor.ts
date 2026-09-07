@@ -1,4 +1,5 @@
 import type { SeededTrackResponse } from './api';
+import { formatTimecode } from './timecode';
 
 export type LyricLine = {
   id: string;
@@ -78,13 +79,62 @@ export type LyricParseResult =
   | { ok: true; lines: LyricLine[] }
   | { ok: false; error: string };
 
+export const MAX_LOCAL_AUDIO_BYTES = 100 * 1024 * 1024;
+export const MAX_LYRIC_CHARACTERS = 200_000;
+export const MAX_LYRIC_LINES = 5_000;
+export const MAX_LYRIC_LINE_CHARACTERS = 1_000;
+export const LYRIC_LIMIT_COUNTER_RATIO = 0.9;
+
+const AUDIO_FILE_NAME_PATTERN =
+  /\.(aac|aif|aiff|flac|m4a|mp3|oga|ogg|opus|wav|weba|webm)$/i;
+
 const toIntegerMs = (seconds: number) => Math.round(seconds * 1000);
 
-export function parsePastedLyrics(value: string): LyricParseResult {
-  const textLines = value
+export function getNormalizedLyricTexts(value: string): string[] {
+  return value
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+export function getLyricInputError(value: string): string | null {
+  if (value.length > MAX_LYRIC_CHARACTERS) {
+    return 'Lyrics must be 200,000 characters or fewer.';
+  }
+
+  const textLines = getNormalizedLyricTexts(value);
+  if (textLines.length > MAX_LYRIC_LINES) {
+    return 'Lyrics must be 5,000 lines or fewer.';
+  }
+  if (textLines.some((line) => line.length > MAX_LYRIC_LINE_CHARACTERS)) {
+    return 'Lyric lines must be 1,000 characters or fewer.';
+  }
+
+  return null;
+}
+
+export function isBrowserSupportedAudioFile(file: File): boolean {
+  if (file.type.startsWith('audio/')) return true;
+  return file.type === '' && AUDIO_FILE_NAME_PATTERN.test(file.name);
+}
+
+export function getLocalAudioFileError(file: File): string | null {
+  if (!isBrowserSupportedAudioFile(file)) {
+    return 'Choose a browser-supported audio file.';
+  }
+  if (file.size > MAX_LOCAL_AUDIO_BYTES) {
+    return 'Audio files must be 100 MB or smaller.';
+  }
+  return null;
+}
+
+export function parsePastedLyrics(value: string): LyricParseResult {
+  const limitError = getLyricInputError(value);
+  if (limitError) {
+    return { ok: false, error: limitError };
+  }
+
+  const textLines = getNormalizedLyricTexts(value);
 
   if (textLines.length === 0) {
     return { ok: false, error: 'Paste at least one non-empty lyric line.' };
@@ -886,11 +936,7 @@ function lineOrder(state: EditorState, lineId: string): number {
 }
 
 export function formatTime(milliseconds: number): string {
-  const safeMs = Math.max(0, Math.round(milliseconds));
-  const minutes = Math.floor(safeMs / 60_000);
-  const seconds = Math.floor((safeMs % 60_000) / 1000);
-  const millis = safeMs % 1000;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  return formatTimecode(milliseconds);
 }
 
 export function secondsToMilliseconds(seconds: number): number {
