@@ -14,19 +14,21 @@ test('exports current alignment as LRC from in-memory state', async ({
 
   await expect(exportButton).toBeDisabled();
 
-  await page.getByRole('button', { name: /^Stamp/ }).click();
+  await page.getByRole('button', { name: 'Stamp line start' }).click();
   await setPlaybackPosition(page, 3_000);
-  await page.getByRole('button', { name: /Finish Line/ }).click();
+  await page.getByRole('button', { name: 'Finish line' }).click();
+  await expect(page.getByRole('button', { name: 'Stamp line start' })).toBeEnabled();
 
-  await page.getByRole('button', { name: /^Stamp/ }).click();
+  await page.getByRole('button', { name: 'Stamp line start' }).click();
   await setPlaybackPosition(page, 6_000);
-  await page.getByRole('button', { name: /Finish Line/ }).click();
+  await page.getByRole('button', { name: 'Finish line' }).click();
 
   await expect(exportButton).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Solo' })).toBeVisible();
 
   await page.getByRole('textbox', { name: 'Start' }).fill('00:00.000');
   await page.getByRole('textbox', { name: 'End' }).fill('00:06.000');
-  await page.getByRole('button', { name: 'Apply exact timing' }).click();
+  await page.getByRole('button', { name: 'Apply timing' }).click();
 
   const downloadPromise = page.waitForEvent('download');
   await exportButton.click();

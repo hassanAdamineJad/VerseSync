@@ -12,23 +12,25 @@ test('one-pass capture times the first three lines and leaves the fourth untimed
   const thirdRow = page.getByRole('listitem').nth(2);
   const fourthRow = page.getByRole('listitem').nth(3);
 
-  await page.getByRole('button', { name: /^Stamp/ }).click();
+  await page.getByRole('button', { name: 'Stamp line start' }).click();
   await expect(page.getByRole('heading', { name: 'One' })).toBeVisible();
-  await expect(page.getByText('Opened at 00:00.000')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stamp and advance to next line' })).toBeEnabled();
+  await expect(page.getByRole('img', { name: /One capturing from 00:00.000/ })).toBeVisible();
 
   await setPlaybackPosition(page, 3_000);
-  await page.getByRole('button', { name: /Stamp & Next/ }).click();
+  await page.getByRole('button', { name: 'Stamp and advance to next line' }).click();
 
   const firstSegment = page.getByRole('button', {
     name: 'One from 00:00.000 to 00:03.000',
   });
   await expect(firstSegment).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Two' })).toBeVisible();
-  await expect(page.getByText('Opened at 00:03.000')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stamp and advance to next line' })).toBeEnabled();
+  await expect(page.getByRole('img', { name: /Two capturing from 00:03.000/ })).toBeVisible();
   await expect(fourthRow.getByRole('button', { name: 'Untimed line' })).toBeVisible();
 
   await setPlaybackPosition(page, 6_000);
-  await page.getByRole('button', { name: /Stamp & Next/ }).click();
+  await page.getByRole('button', { name: 'Stamp and advance to next line' }).click();
 
   const secondSegment = page.getByRole('button', {
     name: 'Two from 00:03.000 to 00:06.000',
@@ -36,10 +38,11 @@ test('one-pass capture times the first three lines and leaves the fourth untimed
   await expect(firstSegment).toBeVisible();
   await expect(secondSegment).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Three' })).toBeVisible();
-  await expect(page.getByText('Opened at 00:06.000')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stamp and advance to next line' })).toBeEnabled();
+  await expect(page.getByRole('img', { name: /Three capturing from 00:06.000/ })).toBeVisible();
 
   await setPlaybackPosition(page, 9_000);
-  await page.getByRole('button', { name: /Finish Line/ }).click();
+  await page.getByRole('button', { name: 'Finish line' }).click();
 
   await expect(firstSegment).toBeVisible();
   await expect(secondSegment).toBeVisible();
