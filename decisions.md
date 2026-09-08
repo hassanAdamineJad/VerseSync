@@ -253,3 +253,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** These are client input constraints rather than async media failures, so they belong beside the Audio and Lyrics fields and must use the same trim-and-skip-blank parsing that creates the document.
 - **Rejected alternatives:** Silently truncating lyrics, replacing a valid audio selection with a rejected file, disabling Try sample when local fields are invalid, and relying only on footer import or decode errors after the source already exists.
 - **Consequences:** Successful imports below the limits are unchanged; unsupported or oversized audio never becomes the loaded selection or a waveform decode input; lyric IDs continue to be generated only when parse succeeds at import.
+
+### 2026-09-08 — Decision: Own workspace transport and capture shortcuts in one window-level handler
+
+- **Context:** Space, S, and F lived on CaptureWorkspace and treated focused buttons as non-shortcut targets, so a pointer click on Play, Stamp, or Finish left focus on that control. The next Space then activated the focused button instead of toggling playback, and S/F stopped working until the Capture panel was clicked again.
+- **Choice:** Handle Space, S, F, Undo/Redo, and `?` in one workspace-level hook using `event.code` for the physical capture/playback keys. After pointer focus, Space is the global Play/Pause shortcut and `preventDefault()` blocks native button activation. After Tab/keyboard focus, Space and Enter keep native control activation and the global handler does not also fire. Text fields, selects, and open dialogs still suppress editor shortcuts.
+- **Rationale:** Capture and playback belong to the session, not a panel. Distinguishing leftover pointer focus from intentional keyboard navigation keeps DAW-style global shortcuts without removing accessible button activation.
+- **Rejected alternatives:** Blurring buttons after click, ignoring every focused control, and keeping a second listener inside CaptureWorkspace.
+- **Consequences:** Future transport or capture shortcuts should join this hook. Native click handlers on Stamp, Finish, and Play stay unchanged.

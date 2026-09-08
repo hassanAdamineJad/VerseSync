@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { formatTime, type CompletedSegment, type EditorState } from '../editor';
 import { TimelineOverview } from './TimelineOverview';
 
@@ -26,7 +25,6 @@ type Props = {
   dragPreviewSegments: CompletedSegment[] | null;
   linePlacementPreview: LinePlacementPreview;
   currentTimeMs: number;
-  shortcutsDisabled: boolean;
   onSelectedSegmentCountChange: (count: number) => void;
   onSelectSegment: (lineId: string) => void;
   onPreviewSegmentDrag: (segments: CompletedSegment[]) => void;
@@ -34,24 +32,15 @@ type Props = {
   onCancelSegmentDrag: () => void;
   onTimelineLaneMetricsChange: (metrics: TimelineLaneMetrics) => void;
   onSeek: (nextMs: number) => void;
-  onTogglePlayback: () => void;
   onStamp: () => void;
   onFinish: () => void;
 };
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element &&
-    target.closest('input, textarea, select, button, a, [contenteditable="true"]') != null
-  );
-}
 
 export function CaptureWorkspace({
   editor,
   dragPreviewSegments,
   linePlacementPreview,
   currentTimeMs,
-  shortcutsDisabled,
   onSelectedSegmentCountChange,
   onSelectSegment,
   onPreviewSegmentDrag,
@@ -59,7 +48,6 @@ export function CaptureWorkspace({
   onCancelSegmentDrag,
   onTimelineLaneMetricsChange,
   onSeek,
-  onTogglePlayback,
   onStamp,
   onFinish,
 }: Props) {
@@ -86,28 +74,6 @@ export function CaptureWorkspace({
   const nextContextLine =
     activeLineIndex >= 0 ? editor.document.lines[activeLineIndex + 1] ?? null : null;
   const canStamp = !isComplete && (openLine != null || readyLine != null);
-
-  useEffect(() => {
-    if (shortcutsDisabled) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || isEditableTarget(event.target)) {
-        return;
-      }
-      if (event.code === 'Space') {
-        event.preventDefault();
-        onTogglePlayback();
-      } else if (event.key.toLowerCase() === 's' && canStamp) {
-        event.preventDefault();
-        onStamp();
-      } else if (event.key.toLowerCase() === 'f' && editor.openSegment) {
-        event.preventDefault();
-        onFinish();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canStamp, editor.openSegment, onFinish, onStamp, onTogglePlayback, shortcutsDisabled]);
 
   return (
     <section className="capture-workspace">

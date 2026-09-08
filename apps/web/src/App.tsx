@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useReducer, useState } from 'react';
+import { useCallback, useRef, useReducer, useState } from 'react';
 import { CaptureWorkspace } from './components/CaptureWorkspace';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { LinePlacementGhost } from './components/LinePlacementGhost';
@@ -18,6 +18,7 @@ import {
 import { useLinePlacementDrag } from './hooks/useLinePlacementDrag';
 import { downloadLrc } from './lrc';
 import { useTrackSourceFlow } from './hooks/useTrackSourceFlow';
+import { useWorkspaceKeyboardShortcuts } from './hooks/useWorkspaceKeyboardShortcuts';
 import {
   useAudioController,
 } from './hooks/useAudioController';
@@ -33,13 +34,6 @@ type SessionAction =
   | { type: 'replaceDocument'; document: EditorDocument }
   | { type: 'undo' }
   | { type: 'redo' };
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element &&
-    target.closest('input, textarea, select, [contenteditable="true"]') != null
-  );
-}
 
 function isHistoryTrackedAction(action: EditorAction): boolean {
   return action.type !== 'select' && action.type !== 'inspect' && action.type !== 'clearMessage';
@@ -193,6 +187,10 @@ export default function App() {
     onBeforeSourceSwap: resetWorkspacePreviews,
   });
 
+  const handleTogglePlayback = useCallback(() => {
+    void togglePlayback();
+  }, [togglePlayback]);
+
   const stamp = useCallback(() => {
     dispatch({ type: 'stamp', atMs: readCurrentTimeMs() });
   }, [readCurrentTimeMs]);
@@ -224,40 +222,17 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (isKeyboardShortcutsOpen) {
-        return;
-      }
-      if (event.defaultPrevented || event.altKey || isEditableTarget(event.target)) {
-        return;
-      }
-
-      const key = event.key.toLowerCase();
-      if (event.key === '?') {
-        event.preventDefault();
-        openKeyboardShortcuts();
-        return;
-      }
-      const canUsePrimaryShortcut = event.metaKey || event.ctrlKey;
-      if (!canUsePrimaryShortcut) return;
-
-      if (key === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) redo();
-        else undo();
-        return;
-      }
-
-      if (key === 'y' && event.ctrlKey && !event.metaKey && !event.shiftKey) {
-        event.preventDefault();
-        redo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isKeyboardShortcutsOpen, openKeyboardShortcuts, redo, undo]);
+  useWorkspaceKeyboardShortcuts({
+    transportEnabled: editor != null && !isChangingTrack,
+    canStamp: editor != null && (editor.openSegment != null || editor.captureCursorLineId != null),
+    canFinish: editor?.openSegment != null,
+    onTogglePlayback: handleTogglePlayback,
+    onStamp: stamp,
+    onFinish: finish,
+    onUndo: undo,
+    onRedo: redo,
+    onOpenHelp: openKeyboardShortcuts,
+  });
 
   const playingLineId = editor
     ? getPlayingLineId(editor, playback.currentTimeMs)
@@ -364,7 +339,7 @@ export default function App() {
           exportDisabled={completedSegmentCount === 0}
           undoDisabled={!canUndo}
           redoDisabled={!canRedo}
-          onTogglePlayback={() => void togglePlayback()}
+          onTogglePlayback={handleTogglePlayback}
           onPlaybackRateChange={setPlaybackRate}
           onUndo={undo}
           onRedo={redo}
@@ -425,8 +400,6 @@ export default function App() {
             onCancelSegmentDrag={() => setDragPreviewSegments(null)}
             onTimelineLaneMetricsChange={handleTimelineLaneMetricsChange}
             onSeek={seek}
-            shortcutsDisabled={isKeyboardShortcutsOpen}
-            onTogglePlayback={() => void togglePlayback()}
             onStamp={stamp}
             onFinish={finish}
           />
