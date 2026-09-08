@@ -1,6 +1,7 @@
 import { useCallback, useRef, useReducer, useState } from 'react';
 import { CaptureWorkspace } from './components/CaptureWorkspace';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { PreviewModal } from './components/PreviewModal';
 import { LinePlacementGhost } from './components/LinePlacementGhost';
 import { LyricsPanel } from './components/LyricsPanel';
 import { SegmentInspector } from './components/SegmentInspector';
@@ -110,7 +111,14 @@ export default function App() {
   const [selectedSegmentCount, setSelectedSegmentCount] = useState(0);
   const [isChangingTrack, setIsChangingTrack] = useState(false);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [editorReveal, setEditorReveal] = useState<{
+    lineId: string;
+    centerMs: number;
+    token: number;
+  } | null>(null);
   const keyboardShortcutsTriggerRef = useRef<HTMLButtonElement>(null);
+  const previewTriggerRef = useRef<HTMLButtonElement>(null);
   const editor = history.present;
 
   const handleMediaEnded = useCallback((durationMs: number) => {
@@ -183,6 +191,7 @@ export default function App() {
     onReplaceDocument: (document) => {
       dispatch({ type: 'replaceDocument', document });
       setIsChangingTrack(false);
+      setIsPreviewOpen(false);
     },
     onBeforeSourceSwap: resetWorkspacePreviews,
   });
@@ -221,6 +230,36 @@ export default function App() {
       keyboardShortcutsTriggerRef.current?.focus();
     });
   }, []);
+
+  const openPreview = useCallback(() => {
+    setIsKeyboardShortcutsOpen(false);
+    setIsPreviewOpen(true);
+  }, []);
+
+  const closePreview = useCallback(() => {
+    setIsPreviewOpen(false);
+    window.requestAnimationFrame(() => {
+      previewTriggerRef.current?.focus();
+    });
+  }, []);
+
+  const editTimingFromPreview = useCallback(
+    (lineId: string) => {
+      if (!editor) return;
+      const segment = editor.segments[lineId];
+      dispatch({ type: 'inspect', lineId });
+      if (segment) {
+        seek(segment.startMs);
+        setEditorReveal({
+          lineId,
+          centerMs: Math.round((segment.startMs + segment.endMs) / 2),
+          token: Date.now(),
+        });
+      }
+      setIsPreviewOpen(false);
+    },
+    [editor, seek],
+  );
 
   useWorkspaceKeyboardShortcuts({
     transportEnabled: editor != null && !isChangingTrack,
@@ -288,6 +327,7 @@ export default function App() {
   }, [cancelReplacement]);
   const openTrackSetup = useCallback(() => {
     resetWorkspacePreviews();
+    setIsPreviewOpen(false);
     setIsChangingTrack(true);
   }, [resetWorkspacePreviews]);
   const exportLrc = useCallback(() => {
@@ -328,6 +368,7 @@ export default function App() {
       <div className="workspace-shell">
         <WorkspaceHeader
           keyboardShortcutsButtonRef={keyboardShortcutsTriggerRef}
+          previewButtonRef={previewTriggerRef}
           trackTitle={editor.document.title}
           sourceLabel={sourceLabel}
           currentTimeMs={playback.currentTimeMs}
@@ -336,6 +377,7 @@ export default function App() {
           isPlaybackReady={playback.isReady}
           playbackError={playback.error}
           playbackRate={playback.playbackRate}
+          previewDisabled={completedSegmentCount === 0}
           exportDisabled={completedSegmentCount === 0}
           undoDisabled={!canUndo}
           redoDisabled={!canRedo}
@@ -344,12 +386,27 @@ export default function App() {
           onUndo={undo}
           onRedo={redo}
           onOpenKeyboardShortcuts={openKeyboardShortcuts}
+          onOpenPreview={openPreview}
           onExportLrc={exportLrc}
           onChangeTrack={openTrackSetup}
         />
 
         {isKeyboardShortcutsOpen ? (
           <KeyboardShortcutsModal onClose={closeKeyboardShortcuts} />
+        ) : null}
+
+        {isPreviewOpen ? (
+          <PreviewModal
+            editor={editor}
+            currentTimeMs={playback.currentTimeMs}
+            isPlaying={playback.isPlaying}
+            isPlaybackReady={playback.isReady}
+            readCurrentTimeMs={readCurrentTimeMs}
+            onTogglePlayback={handleTogglePlayback}
+            onSeek={seek}
+            onEditTiming={editTimingFromPreview}
+            onClose={closePreview}
+          />
         ) : null}
 
         {linePlacementPreview?.hasDragged ? (
@@ -372,6 +429,7 @@ export default function App() {
             lineMergeTargetLineId={lineMergeTargetLineId}
             onSelect={(lineId: string) => dispatch({ type: 'select', lineId })}
             onInspect={(lineId: string) => dispatch({ type: 'inspect', lineId })}
+            revealLineRequest={editorReveal}
             onAddLine={addLine}
             onEditLineText={editLineText}
             onReorderLine={reorderLine}
@@ -402,12 +460,14 @@ export default function App() {
             onSeek={seek}
             onStamp={stamp}
             onFinish={finish}
+            viewportCenterRequest={editorReveal}
           />
           <SegmentInspector
             editor={editor}
             dragPreviewSegments={dragPreviewSegments}
             selectedSegmentCount={selectedSegmentCount}
             currentTimeMs={playback.currentTimeMs}
+            revealLineRequest={editorReveal}
             onApply={(lineId: string, startMs: number, endMs: number) =>
               dispatch({ type: 'editSegment', lineId, startMs, endMs })
             }

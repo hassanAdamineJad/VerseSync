@@ -34,6 +34,11 @@ type Props = {
   onSeek: (nextMs: number) => void;
   onStamp: () => void;
   onFinish: () => void;
+  viewportCenterRequest: {
+    lineId: string;
+    centerMs: number;
+    token: number;
+  } | null;
 };
 
 export function CaptureWorkspace({
@@ -50,6 +55,7 @@ export function CaptureWorkspace({
   onSeek,
   onStamp,
   onFinish,
+  viewportCenterRequest,
 }: Props) {
   const openLine = editor.openSegment
     ? editor.document.lines.find((line) => line.id === editor.openSegment?.lineId) ?? null
@@ -89,6 +95,7 @@ export function CaptureWorkspace({
         onCancelSegmentDrag={onCancelSegmentDrag}
         onTimelineLaneMetricsChange={onTimelineLaneMetricsChange}
         onSeek={onSeek}
+        viewportCenterRequest={viewportCenterRequest}
       />
 
       <section className="capture-card" aria-labelledby="capture-title">

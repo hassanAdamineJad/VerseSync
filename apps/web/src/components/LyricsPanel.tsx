@@ -30,6 +30,11 @@ type Props = {
     clientY: number,
   ) => void;
   onPlacementDragLostPointerCapture: (pointerId: number) => void;
+  revealLineRequest: {
+    lineId: string;
+    centerMs: number;
+    token: number;
+  } | null;
 };
 
 type AddPanelState = { value: string; error: string | null } | null;
@@ -49,6 +54,34 @@ function getTrimmedTextError(value: string, verb: 'add' | 'save') {
       : 'Enter lyric text before saving this line.';
 }
 
+function scrollLyricRowIntoView(list: HTMLOListElement, row: HTMLDivElement) {
+  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? 'auto'
+    : 'smooth';
+
+  row.scrollIntoView({
+    block: 'nearest',
+    behavior,
+  });
+
+  window.requestAnimationFrame(() => {
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const rowTop = rowRect.top - listRect.top + list.scrollTop;
+    const rowBottom = rowTop + row.offsetHeight;
+    const visibleTop = list.scrollTop;
+    const visibleBottom = visibleTop + list.clientHeight;
+
+    if (rowTop >= visibleTop && rowBottom <= visibleBottom) return;
+
+    const nextTop = rowTop < visibleTop ? rowTop : rowBottom - list.clientHeight;
+    list.scrollTo({
+      top: nextTop,
+      behavior,
+    });
+  });
+}
+
 export function LyricsPanel({
   editor,
   playingLineId,
@@ -63,6 +96,7 @@ export function LyricsPanel({
   onDeleteLine,
   onStartPlacementDrag,
   onPlacementDragLostPointerCapture,
+  revealLineRequest,
 }: Props) {
   const listRef = useRef<HTMLOListElement>(null);
   const rowRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -95,32 +129,16 @@ export function LyricsPanel({
     const list = listRef.current;
     const row = rowContainerRefs.current.get(captureTargetLineId);
     if (!list || !row) return;
-    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 'auto'
-      : 'smooth';
-
-    row.scrollIntoView({
-      block: 'nearest',
-      behavior,
-    });
-
-    window.requestAnimationFrame(() => {
-      const listRect = list.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      const rowTop = rowRect.top - listRect.top + list.scrollTop;
-      const rowBottom = rowTop + row.offsetHeight;
-      const visibleTop = list.scrollTop;
-      const visibleBottom = visibleTop + list.clientHeight;
-
-      if (rowTop >= visibleTop && rowBottom <= visibleBottom) return;
-
-      const nextTop = rowTop < visibleTop ? rowTop : rowBottom - list.clientHeight;
-      list.scrollTo({
-        top: nextTop,
-        behavior,
-      });
-    });
+    scrollLyricRowIntoView(list, row);
   }, [captureTargetKey, captureTargetLineId]);
+
+  useEffect(() => {
+    if (revealLineRequest == null) return;
+    const list = listRef.current;
+    const row = rowContainerRefs.current.get(revealLineRequest.lineId);
+    if (!list || !row) return;
+    scrollLyricRowIntoView(list, row);
+  }, [revealLineRequest]);
 
   useEffect(() => {
     if (!addPanelState) return;

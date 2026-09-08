@@ -262,6 +262,22 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rejected alternatives:** Blurring buttons after click, ignoring every focused control, and keeping a second listener inside CaptureWorkspace.
 - **Consequences:** Future transport or capture shortcuts should join this hook. Native click handlers on Stamp, Finish, and Play stay unchanged.
 
+### 2026-09-08 — Decision: Preview the listener experience as a read-only overlay over the live editor
+
+- **Context:** Users need to check the synchronized-lyrics result at any time, including before every line is timed, without leaving the session or altering alignment.
+- **Choice:** Add a workspace Preview overlay that reuses the existing audio element and playback state, derives the active lyric only from committed `startMs` / `endMs`, and leaves the editor mounted underneath. Opening requires at least one timed line; incomplete sheets remain previewable with a compact timed-count status.
+- **Rationale:** An overlay preserves playback position, selection, timeline viewport, capture, and unsaved in-memory edits because none of those stores are snapshotted or unmounted. Using the media clock plus committed segments keeps Preview presentational and out of Undo history.
+- **Rejected alternatives:** A separate route or second audio player, snapshotting segments when Preview opens, treating an open capture as a playable line, and blocking Preview until the sheet is complete.
+- **Consequences:** Capture, inspector, and timeline controls stay out of the Preview chrome. Workspace edit shortcuts stay suspended while the dialog is open; Preview owns Space, Left/Right, and Escape. Closing restores focus to the Preview trigger without seeking or reloading audio.
+
+### 2026-09-08 — Decision: Preview review selection jumps back to a specific timed line
+
+- **Context:** Preview needed a way to mark a lyric with wrong timing and return to that exact segment without editing alignment inside the overlay.
+- **Choice:** Keep Preview read-only. Show zero-padded line numbers and committed `mm:ss.SSS` metadata in a three-column row. Maintain a review selection independent of the playing lyric. Clicking a timed row or pressing Enter seeks to that line’s `startMs`. `Edit timing` closes Preview, inspects the line, seeks to its start, scrolls it into view in Lyrics and Segment Inspector, and centers the Timeline viewport on the segment.
+- **Rationale:** Stable lyric IDs keep repeated text unambiguous, and using `inspect` rather than `select` reveals the segment without redirecting an open capture cursor. Seeking is explicit and opt-in so Back to editor still preserves playback position.
+- **Rejected alternatives:** Editing timestamps inside Preview, treating lyric text as identity, coupling review selection to the playing line, and leaving the Timeline follow-playhead window unchanged after Edit timing.
+- **Consequences:** Preview keyboard handling now includes Up/Down, Enter, and E in addition to Space, Left/Right, and Escape. Timeline follow mode is disabled when centering on a reviewed segment.
+
 ### 2026-09-08 — Decision: Navigate the timeline viewport with trackpad and mouse-wheel gestures
 
 - **Context:** The visible window could already move through zoom presets and the overview range, but the main Timeline still lacked the trackpad pan and pinch-zoom behavior from the editor reference, and discrete 15/30/60/full steps could not keep a cursor time visually anchored while zooming.

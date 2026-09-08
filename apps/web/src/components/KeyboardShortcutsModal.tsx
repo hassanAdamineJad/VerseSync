@@ -17,6 +17,17 @@ const SHORTCUT_SECTIONS: ShortcutSection[] = [
     entries: [{ label: 'Play/Pause', keys: ['Space'] }],
   },
   {
+    title: 'Preview',
+    entries: [
+      { label: 'Play/Pause while Preview is open', keys: ['Space'] },
+      { label: 'Seek backward / forward', keys: ['Left/Right'] },
+      { label: 'Move review selection', keys: ['Up/Down'] },
+      { label: 'Seek to the selected lyric', keys: ['Enter'] },
+      { label: 'Edit the selected lyric in the editor', keys: ['E'] },
+      { label: 'Back to editor', keys: ['Escape'] },
+    ],
+  },
+  {
     title: 'Capture',
     entries: [
       { label: 'Stamp / Stamp & Next', keys: ['S'] },

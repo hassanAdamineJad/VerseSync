@@ -8,7 +8,12 @@ import {
   type CSSProperties,
 } from "react";
 import { Minus, Plus } from "lucide-react";
-import { formatTime, type CompletedSegment, type EditorState } from "../editor";
+import {
+  formatTime,
+  getSeekStepMs,
+  type CompletedSegment,
+  type EditorState,
+} from "../editor";
 import {
   buildSnapTargets,
   findNearestSnap,
@@ -33,6 +38,11 @@ type Props = {
   onCommitSegmentDrag: (segments: CompletedSegment[]) => void;
   onCancelSegmentDrag: () => void;
   onSeek: (nextMs: number) => void;
+  viewportCenterRequest: {
+    lineId: string;
+    centerMs: number;
+    token: number;
+  } | null;
   onTimelineLaneMetricsChange: (metrics: {
     left: number;
     right: number;
@@ -472,6 +482,7 @@ export function TimelineOverview({
   onCancelSegmentDrag,
   onSeek,
   onTimelineLaneMetricsChange,
+  viewportCenterRequest,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -578,6 +589,23 @@ export function TimelineOverview({
         getWindowFromStart(durationMs, resolvedWindowMs, current).startMs,
     );
   }, [centeredWindow.startMs, durationMs, followPlayhead, resolvedWindowMs]);
+
+  const appliedViewportCenterTokenRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (viewportCenterRequest == null) return;
+    if (appliedViewportCenterTokenRef.current === viewportCenterRequest.token) {
+      return;
+    }
+    appliedViewportCenterTokenRef.current = viewportCenterRequest.token;
+    setFollowPlayhead(false);
+    setManualWindowStartMs(
+      getCenteredWindow(
+        durationMs,
+        viewportCenterRequest.centerMs,
+        resolvedWindowMs,
+      ).startMs,
+    );
+  }, [durationMs, resolvedWindowMs, viewportCenterRequest]);
 
   const timedSegments = useMemo(
     () =>
@@ -798,7 +826,7 @@ export function TimelineOverview({
     durationMs <= 0 ? 0 : (visibleStartMs / durationMs) * 100;
   const navigatorThumbWidthPercent =
     durationMs <= 0 ? 100 : (visibleWindowMs / durationMs) * 100;
-  const seekStepMs = Math.max(100, Math.round(visibleWindowMs / 60));
+  const seekStepMs = getSeekStepMs(visibleWindowMs);
 
   const seekWithinVisibleWindow = (nextMs: number) => {
     const clampedMs = Math.min(

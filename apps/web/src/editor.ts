@@ -906,12 +906,51 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
   }
 }
 
+export const PREVIEW_PREVIOUS_LINE_COUNT = 2;
+export const PREVIEW_UPCOMING_LINE_COUNT = 2;
+
+export type PreviewLyricLine = {
+  id: string;
+  text: string;
+  index: number;
+  offset: number;
+  isActive: boolean;
+  isUntimed: boolean;
+  startMs: number | null;
+  endMs: number | null;
+};
+
+export function formatLyricLineNumber(index: number): string {
+  return String(index + 1).padStart(2, '0');
+}
+
+export function formatPreviewTimeRange(startMs: number, endMs: number): string {
+  return `${formatTime(startMs)} – ${formatTime(endMs)}`;
+}
+
+export function getSeekStepMs(windowMs: number): number {
+  return Math.max(100, Math.round(windowMs / 60));
+}
+
+function compareActiveSegments(
+  state: EditorState,
+  a: CompletedSegment,
+  b: CompletedSegment,
+): number {
+  return b.startMs - a.startMs || lineOrder(state, a.lineId) - lineOrder(state, b.lineId);
+}
+
+function getCompletedSegmentsCoveringTime(
+  state: EditorState,
+  currentTimeMs: number,
+): CompletedSegment[] {
+  return Object.values(state.segments)
+    .filter((segment) => segment.startMs <= currentTimeMs && currentTimeMs < segment.endMs)
+    .sort((a, b) => compareActiveSegments(state, a, b));
+}
+
 export function getPlayingLineId(state: EditorState, currentTimeMs: number): string | null {
-  const active = Object.values(state.segments)
-    .filter(
-      (segment) => segment.startMs <= currentTimeMs && currentTimeMs < segment.endMs,
-    )
-    .sort((a, b) => b.startMs - a.startMs || lineOrder(state, a.lineId) - lineOrder(state, b.lineId));
+  const active = getCompletedSegmentsCoveringTime(state, currentTimeMs);
 
   if (
     state.openSegment &&
@@ -923,12 +962,66 @@ export function getPlayingLineId(state: EditorState, currentTimeMs: number): str
       startMs: state.openSegment.startMs,
       endMs: state.document.durationMs,
     });
-    active.sort(
-      (a, b) => b.startMs - a.startMs || lineOrder(state, a.lineId) - lineOrder(state, b.lineId),
-    );
+    active.sort((a, b) => compareActiveSegments(state, a, b));
   }
 
   return active[0]?.lineId ?? null;
+}
+
+export function getPreviewActiveLineId(
+  state: EditorState,
+  currentTimeMs: number,
+): string | null {
+  return getCompletedSegmentsCoveringTime(state, currentTimeMs)[0]?.lineId ?? null;
+}
+
+export function getPreviewAnchorLineId(
+  state: EditorState,
+  currentTimeMs: number,
+): string | null {
+  const activeLineId = getPreviewActiveLineId(state, currentTimeMs);
+  if (activeLineId) return activeLineId;
+
+  const ended = Object.values(state.segments)
+    .filter((segment) => segment.endMs <= currentTimeMs)
+    .sort(
+      (a, b) => b.endMs - a.endMs || lineOrder(state, b.lineId) - lineOrder(state, a.lineId),
+    );
+
+  return ended[0]?.lineId ?? null;
+}
+
+export function getPreviewLyricLines(
+  state: EditorState,
+  currentTimeMs: number,
+): PreviewLyricLine[] {
+  const activeLineId = getPreviewActiveLineId(state, currentTimeMs);
+  const anchorLineId = getPreviewAnchorLineId(state, currentTimeMs);
+  const anchorIndex = anchorLineId
+    ? state.document.lines.findIndex((line) => line.id === anchorLineId)
+    : -1;
+  const originIndex = anchorIndex < 0 ? -1 : anchorIndex;
+
+  return state.document.lines.flatMap((line, index) => {
+    const offset = index - originIndex;
+    if (offset < -PREVIEW_PREVIOUS_LINE_COUNT || offset > PREVIEW_UPCOMING_LINE_COUNT) {
+      return [];
+    }
+
+    const segment = state.segments[line.id];
+    return [
+      {
+        id: line.id,
+        text: line.text,
+        index: line.index,
+        offset,
+        isActive: line.id === activeLineId,
+        isUntimed: segment == null,
+        startMs: segment?.startMs ?? null,
+        endMs: segment?.endMs ?? null,
+      },
+    ];
+  });
 }
 
 function lineOrder(state: EditorState, lineId: string): number {

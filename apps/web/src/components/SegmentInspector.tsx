@@ -22,6 +22,11 @@ type Props = {
     secondText: string,
     splitMs: number,
   ) => void;
+  revealLineRequest: {
+    lineId: string;
+    centerMs: number;
+    token: number;
+  } | null;
 };
 
 type FieldErrors = {
@@ -155,6 +160,7 @@ export function SegmentInspector({
   onRemoveTiming,
   onMergeWithNext,
   onSplitLine,
+  revealLineRequest,
 }: Props) {
   const selectedLine = editor.document.lines.find(
     (line) => line.id === editor.selectedLineId,
@@ -194,6 +200,23 @@ export function SegmentInspector({
   useEffect(() => {
     setSplitEditor(null);
   }, [selectedLine?.id, segment?.endMs, segment?.lineId, segment?.startMs]);
+
+  useEffect(() => {
+    if (revealLineRequest == null) return;
+    const panel = contentRef.current?.closest('.inspector-panel');
+    if (panel instanceof HTMLElement) {
+      panel.scrollIntoView({
+        block: 'nearest',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
+      });
+    }
+    window.requestAnimationFrame(() => {
+      startRef.current?.focus();
+      startRef.current?.select();
+    });
+  }, [revealLineRequest]);
 
   useEffect(() => {
     if (!splitEditor) return;

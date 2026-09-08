@@ -1,11 +1,12 @@
-import type { Ref } from 'react';
-import { Download, Keyboard, Pause, Play, Redo2, Undo2 } from 'lucide-react';
+import { useId, type Ref } from 'react';
+import { Download, Eye, Keyboard, Pause, Play, Redo2, Undo2 } from 'lucide-react';
 import { formatTime } from '../editor';
 
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
 type Props = {
   keyboardShortcutsButtonRef: Ref<HTMLButtonElement>;
+  previewButtonRef: Ref<HTMLButtonElement>;
   trackTitle: string;
   sourceLabel: string;
   currentTimeMs: number;
@@ -14,6 +15,7 @@ type Props = {
   isPlaybackReady: boolean;
   playbackError: string | null;
   playbackRate: number;
+  previewDisabled: boolean;
   exportDisabled: boolean;
   undoDisabled: boolean;
   redoDisabled: boolean;
@@ -22,12 +24,14 @@ type Props = {
   onUndo: () => void;
   onRedo: () => void;
   onOpenKeyboardShortcuts: () => void;
+  onOpenPreview: () => void;
   onExportLrc: () => void;
   onChangeTrack: () => void;
 };
 
 export function WorkspaceHeader({
   keyboardShortcutsButtonRef,
+  previewButtonRef,
   trackTitle,
   sourceLabel,
   currentTimeMs,
@@ -36,6 +40,7 @@ export function WorkspaceHeader({
   isPlaybackReady,
   playbackError,
   playbackRate,
+  previewDisabled,
   exportDisabled,
   undoDisabled,
   redoDisabled,
@@ -44,9 +49,11 @@ export function WorkspaceHeader({
   onUndo,
   onRedo,
   onOpenKeyboardShortcuts,
+  onOpenPreview,
   onExportLrc,
   onChangeTrack,
 }: Props) {
+  const previewHintId = useId();
   const progressPercent = durationMs <= 0 ? 0 : Math.min(Math.max((currentTimeMs / durationMs) * 100, 0), 100);
 
   return (
@@ -142,6 +149,23 @@ export function WorkspaceHeader({
           <Keyboard aria-hidden="true" size={15} strokeWidth={1.9} />
           <span>Help</span>
         </button>
+        <button
+          ref={previewButtonRef}
+          type="button"
+          className="toolbar-text-icon-button"
+          onClick={onOpenPreview}
+          disabled={previewDisabled}
+          title={previewDisabled ? 'Time at least one lyric line to preview.' : 'Preview'}
+          aria-describedby={previewDisabled ? previewHintId : undefined}
+        >
+          <Eye aria-hidden="true" size={15} strokeWidth={1.9} />
+          <span>Preview</span>
+        </button>
+        {previewDisabled ? (
+          <span id={previewHintId} className="sr-only">
+            Time at least one lyric line to preview.
+          </span>
+        ) : null}
         <button
           type="button"
           className="toolbar-export-button"

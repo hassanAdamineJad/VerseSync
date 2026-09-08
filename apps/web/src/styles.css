@@ -813,6 +813,256 @@ button.toolbar-playback-button {
   @apply text-stone-500;
 }
 
+.preview-overlay {
+  @apply fixed inset-0 z-50 text-stone-100;
+  background:
+    radial-gradient(circle at 50% 26%, rgba(245, 158, 11, 0.08), transparent 42%),
+    linear-gradient(180deg, #090b10 0%, #0b0d12 100%);
+}
+
+.preview-dialog {
+  @apply mx-auto flex h-full min-h-0 w-full max-w-[48rem] flex-col px-5 py-4 outline-none sm:px-8;
+}
+
+.preview-toolbar {
+  @apply flex items-center justify-between gap-4;
+}
+
+.preview-back-button {
+  @apply inline-flex min-h-10 items-center gap-2 rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium text-stone-300 shadow-none;
+}
+
+.preview-back-button:hover:not(:disabled),
+.preview-back-button:focus-visible {
+  @apply bg-transparent text-stone-100;
+}
+
+.preview-back-button:focus-visible,
+.preview-playback-button:focus-visible {
+  outline: 2px solid rgba(248, 197, 106, 0.7);
+  outline-offset: 3px;
+}
+
+.preview-status {
+  @apply m-0 font-mono text-[0.72rem] text-stone-500;
+}
+
+.preview-stage {
+  @apply flex min-h-0 flex-1 flex-col pt-6;
+}
+
+.preview-track {
+  @apply min-w-0;
+}
+
+.preview-track h2 {
+  @apply m-0 truncate text-sm font-medium text-stone-400;
+}
+
+.preview-filename {
+  @apply m-0 truncate text-xs text-stone-600;
+}
+
+.preview-lyrics {
+  @apply relative mt-8 min-h-0 flex-1 overflow-hidden;
+}
+
+.preview-lyrics-stack {
+  @apply relative mx-auto w-full max-w-[42rem];
+  height: 23.5rem;
+}
+
+.preview-line {
+  @apply absolute inset-x-0 m-0 grid w-full items-start gap-x-3 rounded-md border border-transparent bg-transparent px-2 py-1.5 text-left text-[1.05rem] font-medium leading-snug text-stone-600 shadow-none;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 13.75rem;
+  transform: translateY(calc(9.4rem + (var(--preview-line-offset, 0) * 4.7rem)));
+  opacity: 0;
+  min-height: 4.35rem;
+  transition:
+    transform 240ms ease,
+    opacity 240ms ease,
+    color 240ms ease,
+    background-color 240ms ease,
+    border-color 240ms ease;
+}
+
+button.preview-line {
+  @apply min-h-0 cursor-pointer justify-start rounded-md;
+}
+
+button.preview-line:hover:not(:disabled) {
+  @apply border-transparent bg-ink-850/0;
+}
+
+.preview-line-number,
+.preview-line-time {
+  @apply font-mono text-[0.72rem] font-medium tabular-nums text-stone-500;
+  padding-top: 0.28rem;
+}
+
+.preview-line-text {
+  @apply min-w-0 text-left;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.preview-line-time {
+  @apply justify-self-end text-right;
+}
+
+.preview-line.is-before,
+.preview-line.is-after,
+.preview-line.is-idle {
+  opacity: 0.84;
+}
+
+.preview-line.is-current {
+  @apply border-transparent bg-amber-400/10 text-amber-300;
+  opacity: 1;
+}
+
+.preview-line.is-current .preview-line-text {
+  @apply text-[1.5rem] font-semibold tracking-[-0.03em] text-amber-300;
+}
+
+.preview-line.is-current .preview-line-number,
+.preview-line.is-current .preview-line-time {
+  @apply text-amber-200/80;
+  padding-top: 0.55rem;
+}
+
+.preview-line.is-idle {
+  @apply text-stone-300;
+}
+
+.preview-line[data-distance="1"] {
+  @apply text-stone-500;
+}
+
+.preview-line[data-distance="2"] {
+  @apply text-stone-700;
+  opacity: 0.48;
+}
+
+.preview-line.is-untimed:not(.is-current) {
+  @apply text-stone-700;
+}
+
+.preview-line.is-untimed .preview-line-time {
+  @apply font-sans text-[0.72rem] font-medium tracking-normal text-stone-600;
+}
+
+.preview-line.is-review {
+  @apply border-stone-500/55;
+  box-shadow: inset 0 0 0 1px rgba(214, 211, 206, 0.28);
+  opacity: 1;
+}
+
+.preview-line.is-current.is-review,
+.preview-line.is-current[data-review] {
+  box-shadow: none;
+}
+
+.preview-line:focus-visible {
+  outline: 2px solid rgba(214, 211, 206, 0.55);
+  outline-offset: 2px;
+}
+
+.preview-line.is-current:focus-visible {
+  outline-color: rgba(248, 197, 106, 0.7);
+}
+
+.preview-review-actions {
+  @apply flex justify-end pt-3;
+}
+
+.preview-edit-timing {
+  @apply inline-flex min-h-9 items-center gap-1.5 rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium text-stone-300 shadow-none;
+}
+
+.preview-edit-timing:hover:not(:disabled),
+.preview-edit-timing:focus-visible {
+  @apply bg-transparent text-stone-100;
+}
+
+.preview-edit-timing:focus-visible {
+  outline: 2px solid rgba(248, 197, 106, 0.7);
+  outline-offset: 3px;
+}
+
+.preview-transport {
+  @apply mt-auto grid items-center gap-x-4 gap-y-3 pt-6;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.preview-playback-button {
+  @apply h-11 min-h-0 w-11 shrink-0 justify-center rounded-full border border-amber-300/40 bg-amber-400/10 px-0 py-0 text-amber-200 shadow-none;
+}
+
+.preview-playback-button:hover:not(:disabled),
+.preview-playback-button:focus-visible {
+  @apply border-amber-300/70 bg-amber-400/16 text-amber-100;
+}
+
+.preview-clock {
+  @apply col-start-2 flex items-baseline gap-2 font-mono text-[0.92rem] tabular-nums text-stone-200;
+}
+
+.preview-clock span:last-child {
+  @apply text-stone-500;
+}
+
+.preview-seek {
+  @apply col-span-2 grid gap-0;
+}
+
+.preview-seek input[type="range"] {
+  @apply h-1.5 w-full rounded-full bg-ink-700;
+  background: linear-gradient(
+    90deg,
+    rgba(248, 197, 106, 0.92) 0,
+    rgba(248, 197, 106, 0.92) var(--preview-seek-progress, 0%),
+    rgba(42, 49, 61, 1) var(--preview-seek-progress, 0%)
+  );
+}
+
+.preview-seek input[type="range"]:focus-visible {
+  outline: 2px solid rgba(248, 197, 106, 0.7);
+  outline-offset: 3px;
+}
+
+@media (max-width: 639px) {
+  .preview-lyrics-stack {
+    height: 20.5rem;
+  }
+
+  .preview-line {
+    grid-template-columns: 2rem minmax(0, 1fr) 8.75rem;
+    gap: 0.5rem;
+    transform: translateY(calc(8rem + (var(--preview-line-offset, 0) * 4.1rem)));
+  }
+
+  .preview-line.is-current .preview-line-text {
+    @apply text-[1.28rem];
+  }
+
+  .preview-line:not(.is-current) .preview-line-time {
+    @apply hidden;
+  }
+
+  .preview-line:not(.is-current) {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-line {
+    transition: none;
+  }
+}
+
 .toolbar-playback-error {
   @apply m-0 text-xs text-rose-300;
 }
