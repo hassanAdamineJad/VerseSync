@@ -54,6 +54,11 @@ type WindowPreset = 15 | 30 | 60 | "full";
 const FULL_PEAK_COUNT = 720;
 const VISIBLE_PEAK_COUNT = 120;
 const WINDOW_PRESETS: WindowPreset[] = [15, 30, 60, "full"];
+const DEFAULT_WINDOW_MS = 15_000;
+const MIN_WINDOW_PRESET_MS = 15_000;
+const ZOOM_WHEEL_SENSITIVITY = 0.008;
+const PAN_WHEEL_SCALE = 1.2;
+const PRESET_MATCH_EPSILON_MS = 50;
 const MIN_RULER_LABEL_SPACING_PX = 90;
 const NICE_RULER_INTERVALS_MS = [
   500, 1_000, 2_000, 3_000, 5_000, 10_000, 15_000, 30_000, 60_000,
@@ -187,6 +192,111 @@ function getWindowFromStart(
     endMs,
     windowMs: Math.max(1, endMs - clampedStartMs),
   };
+}
+
+function getMinWindowMs(durationMs: number) {
+  return Math.min(MIN_WINDOW_PRESET_MS, Math.max(1, durationMs));
+}
+
+function getMaxWindowMs(durationMs: number) {
+  return Math.max(1, durationMs);
+}
+
+function clampRequestedWindowMs(windowMs: number, durationMs: number) {
+  return Math.min(
+    Math.max(Math.round(windowMs), getMinWindowMs(durationMs)),
+    getMaxWindowMs(durationMs),
+  );
+}
+
+function getPresetWindowMs(preset: WindowPreset, durationMs: number) {
+  return clampRequestedWindowMs(
+    preset === "full" ? durationMs : preset * 1000,
+    durationMs,
+  );
+}
+
+function getNextPresetWindowMs(
+  currentWindowMs: number,
+  durationMs: number,
+  direction: "in" | "out",
+) {
+  const uniquePresets = [
+    ...new Set(
+      WINDOW_PRESETS.map((preset) => getPresetWindowMs(preset, durationMs)),
+    ),
+  ].sort((a, b) => a - b);
+
+  if (direction === "in") {
+    return (
+      [...uniquePresets]
+        .reverse()
+        .find((ms) => ms < currentWindowMs - PRESET_MATCH_EPSILON_MS) ??
+      uniquePresets[0] ??
+      currentWindowMs
+    );
+  }
+
+  return (
+    uniquePresets.find(
+      (ms) => ms > currentWindowMs + PRESET_MATCH_EPSILON_MS,
+    ) ??
+    uniquePresets.at(-1) ??
+    currentWindowMs
+  );
+}
+
+function formatWindowControlLabel(windowMs: number, durationMs: number) {
+  if (windowMs >= durationMs - 1) return "Full";
+  return `${Math.max(1, Math.round(windowMs / 1000))}s`;
+}
+
+function formatWindowCopyLabel(windowMs: number, durationMs: number) {
+  if (windowMs >= durationMs - 1) return "Full track";
+  return `${Math.max(1, Math.round(windowMs / 1000))} seconds`;
+}
+
+function normalizeWheelDelta(delta: number, deltaMode: number) {
+  if (deltaMode === 1) return delta * 16;
+  if (deltaMode === 2) return delta * 800;
+  return delta;
+}
+
+function timeAtClientX(
+  clientX: number,
+  left: number,
+  width: number,
+  startMs: number,
+  windowMs: number,
+) {
+  const ratio = width <= 0 ? 0 : (clientX - left) / width;
+  return startMs + Math.min(Math.max(ratio, 0), 1) * windowMs;
+}
+
+function zoomViewportAt(
+  factor: number,
+  anchorMs: number,
+  startMs: number,
+  windowMs: number,
+  durationMs: number,
+) {
+  const nextWindowMs = clampRequestedWindowMs(windowMs * factor, durationMs);
+  const frac = windowMs <= 0 ? 0.5 : (anchorMs - startMs) / windowMs;
+  const nextStartMs = anchorMs - frac * nextWindowMs;
+  const next = getWindowFromStart(durationMs, nextWindowMs, nextStartMs);
+  return { startMs: next.startMs, windowMs: nextWindowMs };
+}
+
+function panViewportByDelta(
+  deltaPx: number,
+  widthPx: number,
+  startMs: number,
+  windowMs: number,
+  durationMs: number,
+) {
+  const deltaMs = (deltaPx / Math.max(widthPx, 1)) * windowMs * PAN_WHEEL_SCALE;
+  const next = getWindowFromStart(durationMs, windowMs, startMs + deltaMs);
+  return { startMs: next.startMs, windowMs };
 }
 
 function getNiceRulerIntervalMs(minimumIntervalMs: number): number {
@@ -363,6 +473,7 @@ export function TimelineOverview({
   onSeek,
   onTimelineLaneMetricsChange,
 }: Props) {
+  const canvasRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const laneRef = useRef<HTMLDivElement>(null);
@@ -370,28 +481,40 @@ export function TimelineOverview({
   const dragStateRef = useRef<DragState | null>(null);
   const seekGestureRef = useRef<SeekGesture | null>(null);
   const navigatorGestureRef = useRef<NavigatorGesture | null>(null);
+  const viewportFrameRef = useRef<number | null>(null);
+  const pendingViewportRef = useRef<{
+    startMs: number;
+    windowMs: number;
+  } | null>(null);
+  const viewportInteractionRef = useRef({
+    durationMs: 0,
+    visibleStartMs: 0,
+    visibleWindowMs: DEFAULT_WINDOW_MS,
+    resolvedWindowMs: DEFAULT_WINDOW_MS,
+  });
   const durationMs = editor.document.durationMs;
   const audioUrl = editor.document.source.audioUrl;
   const { peaks, error } = useWaveformPeaks(audioUrl);
   const [laneWidthPx, setLaneWidthPx] = useState(0);
   const [rulerWidthPx, setRulerWidthPx] = useState(0);
-  const [windowPreset, setWindowPreset] = useState<WindowPreset>(15);
+  const [requestedWindowMs, setRequestedWindowMs] = useState(DEFAULT_WINDOW_MS);
   const [followPlayhead, setFollowPlayhead] = useState(true);
   const [manualWindowStartMs, setManualWindowStartMs] = useState(0);
   const [selectedLineIds, setSelectedLineIds] = useState<string[]>([]);
   const [activeSnapTargetMs, setActiveSnapTargetMs] = useState<number | null>(
     null,
   );
-  const requestedWindowMs =
-    windowPreset === "full" ? durationMs : windowPreset * 1000;
+  const resolvedWindowMs = clampRequestedWindowMs(
+    requestedWindowMs,
+    durationMs,
+  );
   const centeredWindow = useMemo(
-    () => getCenteredWindow(durationMs, currentTimeMs, requestedWindowMs),
-    [currentTimeMs, durationMs, requestedWindowMs],
+    () => getCenteredWindow(durationMs, currentTimeMs, resolvedWindowMs),
+    [currentTimeMs, durationMs, resolvedWindowMs],
   );
   const manualWindow = useMemo(
-    () =>
-      getWindowFromStart(durationMs, requestedWindowMs, manualWindowStartMs),
-    [durationMs, manualWindowStartMs, requestedWindowMs],
+    () => getWindowFromStart(durationMs, resolvedWindowMs, manualWindowStartMs),
+    [durationMs, manualWindowStartMs, resolvedWindowMs],
   );
   const {
     startMs: visibleStartMs,
@@ -432,7 +555,7 @@ export function TimelineOverview({
   }, []);
 
   useEffect(() => {
-    setWindowPreset(15);
+    setRequestedWindowMs(DEFAULT_WINDOW_MS);
     setFollowPlayhead(true);
     setManualWindowStartMs(0);
     const initiallySelectedLineId =
@@ -452,9 +575,9 @@ export function TimelineOverview({
 
     setManualWindowStartMs(
       (current) =>
-        getWindowFromStart(durationMs, requestedWindowMs, current).startMs,
+        getWindowFromStart(durationMs, resolvedWindowMs, current).startMs,
     );
-  }, [centeredWindow.startMs, durationMs, followPlayhead, requestedWindowMs]);
+  }, [centeredWindow.startMs, durationMs, followPlayhead, resolvedWindowMs]);
 
   const timedSegments = useMemo(
     () =>
@@ -659,16 +782,16 @@ export function TimelineOverview({
     snapGuideMs != null
       ? toWindowPercent(snapGuideMs, visibleStartMs, visibleWindowMs)
       : null;
-  const presetIndex = WINDOW_PRESETS.indexOf(windowPreset);
-  const canZoomIn = presetIndex > 0;
-  const canZoomOut = presetIndex < WINDOW_PRESETS.length - 1;
-  const currentWindowLabel =
-    windowPreset === "full" ? "Full track" : `${windowPreset} seconds`;
-  const currentWindowControlLabel =
-    windowPreset === "full" ? "Full" : `${windowPreset}s`;
+  const canZoomIn = resolvedWindowMs > getMinWindowMs(durationMs) + 1;
+  const canZoomOut = resolvedWindowMs < getMaxWindowMs(durationMs) - 1;
+  const currentWindowLabel = formatWindowCopyLabel(visibleWindowMs, durationMs);
+  const currentWindowControlLabel = formatWindowControlLabel(
+    resolvedWindowMs,
+    durationMs,
+  );
   const navigationMaxMs = Math.max(
     0,
-    durationMs - Math.min(requestedWindowMs, durationMs),
+    durationMs - Math.min(resolvedWindowMs, durationMs),
   );
   const visibleRangeLabel = `${formatTime(visibleStartMs)}-${formatTime(visibleEndMs)}`;
   const navigatorThumbLeftPercent =
@@ -710,6 +833,104 @@ export function TimelineOverview({
     setFollowPlayhead(false);
     setManualWindowStartMs(clampNavigatorStartMs(nextStartMs));
   };
+
+  viewportInteractionRef.current = {
+    durationMs,
+    visibleStartMs,
+    visibleWindowMs,
+    resolvedWindowMs,
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const flushPendingViewport = () => {
+      viewportFrameRef.current = null;
+      const pending = pendingViewportRef.current;
+      if (!pending) return;
+      pendingViewportRef.current = null;
+      setFollowPlayhead(false);
+      setRequestedWindowMs(pending.windowMs);
+      setManualWindowStartMs(pending.startMs);
+    };
+
+    const scheduleViewport = (startMs: number, windowMs: number) => {
+      pendingViewportRef.current = { startMs, windowMs };
+      viewportInteractionRef.current.visibleStartMs = startMs;
+      viewportInteractionRef.current.visibleWindowMs = Math.min(
+        windowMs,
+        viewportInteractionRef.current.durationMs,
+      );
+      viewportInteractionRef.current.resolvedWindowMs = windowMs;
+      if (viewportFrameRef.current != null) return;
+      viewportFrameRef.current =
+        window.requestAnimationFrame(flushPendingViewport);
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (dragStateRef.current != null || navigatorGestureRef.current != null) {
+        return;
+      }
+
+      const isZoom = event.metaKey || event.ctrlKey;
+      const deltaX = normalizeWheelDelta(event.deltaX, event.deltaMode);
+      const deltaY = normalizeWheelDelta(event.deltaY, event.deltaMode);
+
+      if (isZoom) {
+        if (deltaY === 0) return;
+        if (event.cancelable) event.preventDefault();
+
+        const live = pendingViewportRef.current ?? {
+          startMs: viewportInteractionRef.current.visibleStartMs,
+          windowMs: viewportInteractionRef.current.visibleWindowMs,
+        };
+        const rect = canvas.getBoundingClientRect();
+        const next = zoomViewportAt(
+          Math.exp(deltaY * ZOOM_WHEEL_SENSITIVITY),
+          timeAtClientX(
+            event.clientX,
+            rect.left,
+            rect.width,
+            live.startMs,
+            live.windowMs,
+          ),
+          live.startMs,
+          live.windowMs,
+          viewportInteractionRef.current.durationMs,
+        );
+        scheduleViewport(next.startMs, next.windowMs);
+        return;
+      }
+
+      if (deltaX === 0 && deltaY === 0) return;
+      if (event.cancelable) event.preventDefault();
+
+      const live = pendingViewportRef.current ?? {
+        startMs: viewportInteractionRef.current.visibleStartMs,
+        windowMs: viewportInteractionRef.current.visibleWindowMs,
+      };
+      const panDeltaPx = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+      const next = panViewportByDelta(
+        panDeltaPx,
+        canvas.clientWidth,
+        live.startMs,
+        live.windowMs,
+        viewportInteractionRef.current.durationMs,
+      );
+      scheduleViewport(next.startMs, live.windowMs);
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      canvas.removeEventListener("wheel", handleWheel);
+      if (viewportFrameRef.current != null) {
+        window.cancelAnimationFrame(viewportFrameRef.current);
+        viewportFrameRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const lane = laneRef.current;
@@ -979,7 +1200,9 @@ export function TimelineOverview({
           <p className="eyebrow">Timeline</p>
           <h2 id="timeline-title">Alignment timeline</h2>
           <p className="timeline-window-copy">
-            Select, place, and adjust lyric timing without seeking playback.
+            Two-finger scroll to pan
+            <span aria-hidden="true"> · </span>
+            Pinch or ⌘/Ctrl + scroll to zoom
           </p>
         </div>
         <div className="timeline-header-actions">
@@ -1003,7 +1226,9 @@ export function TimelineOverview({
               aria-label="Zoom in timeline"
               onClick={() => {
                 if (!canZoomIn) return;
-                setWindowPreset(WINDOW_PRESETS[presetIndex - 1] ?? 15);
+                setRequestedWindowMs(
+                  getNextPresetWindowMs(resolvedWindowMs, durationMs, "in"),
+                );
               }}
               disabled={!canZoomIn}
             >
@@ -1017,7 +1242,9 @@ export function TimelineOverview({
               aria-label="Zoom out timeline"
               onClick={() => {
                 if (!canZoomOut) return;
-                setWindowPreset(WINDOW_PRESETS[presetIndex + 1] ?? "full");
+                setRequestedWindowMs(
+                  getNextPresetWindowMs(resolvedWindowMs, durationMs, "out"),
+                );
               }}
               disabled={!canZoomOut}
             >
@@ -1027,7 +1254,7 @@ export function TimelineOverview({
         </div>
       </div>
 
-      <div className="timeline-canvas">
+      <div ref={canvasRef} className="timeline-canvas">
         <div
           ref={rulerRef}
           className="timeline-ruler"

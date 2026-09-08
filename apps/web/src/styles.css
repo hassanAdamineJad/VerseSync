@@ -1534,6 +1534,14 @@ input[type="range"]::-webkit-slider-thumb {
   @apply border-amber-300/40 bg-ink-900 text-amber-100;
 }
 
+.timeline-return-button:focus-visible {
+  @apply border-amber-300/40 bg-ink-900 text-amber-100 outline-none ring-2 ring-amber-100/70 ring-offset-2 ring-offset-ink-950;
+}
+
+.timeline-return-button:disabled {
+  @apply cursor-default border-ink-800/80 text-stone-600;
+}
+
 .capture-stage {
   @apply relative grid overflow-hidden border-t border-ink-700/70 pt-4;
   grid-template-rows: 1.5rem 8rem 2.5rem 1.5rem;

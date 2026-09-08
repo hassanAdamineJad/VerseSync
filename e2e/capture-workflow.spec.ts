@@ -67,7 +67,7 @@ test('one-pass capture times the first three lines and leaves the fourth untimed
 test('capture shortcuts work globally without depending on panel focus', async ({ page }) => {
   await openLocalTrack(page, 'One\nTwo\nThree\nFour');
 
-  const playButton = page.getByRole('button', { name: 'Play' });
+  const playButton = page.getByRole('button', { name: 'Play', exact: true });
   await expect(playButton).toBeEnabled();
   await playButton.click();
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -132,7 +132,7 @@ test('pointer-focused Stamp and Finish do not steal Space or later shortcuts', a
   expect(await readClickCount(stampNextButton)).toBe(0);
 
   await page.keyboard.press('Space');
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   expect(await readClickCount(stampNextButton)).toBe(0);
 
   await setPlaybackPosition(page, 3_000);
@@ -159,7 +159,7 @@ test('editor shortcuts ignore fields and dialogs but keep keyboard button activa
   await page.keyboard.press('Space');
   await expect(captureState(page)).toHaveText('Capturing');
   await expect(page.getByRole('heading', { name: 'One' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 
   await setPlaybackPosition(page, 3_000);
   const finishButton = page.getByRole('button', { name: 'Finish line' });
@@ -178,7 +178,7 @@ test('editor shortcuts ignore fields and dialogs but keep keyboard button activa
   await expect(lyricInput).toHaveValue('sf ');
   await expect(captureState(page)).toHaveText('Ready');
   await expect(page.getByRole('heading', { name: 'Two' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await lyricInput.press('Escape');
 
   await page.getByRole('button', { name: 'One from 00:00.000 to 00:03.000' }).click();
@@ -188,7 +188,7 @@ test('editor shortcuts ignore fields and dialogs but keep keyboard button activa
   await page.keyboard.press('Space');
   await expect(captureState(page)).toHaveText('Ready');
   await expect(page.getByRole('heading', { name: 'Two' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 
   await page.getByLabel('Playback speed').selectOption('0.5');
   await page.getByLabel('Playback speed').press('s');
@@ -202,13 +202,13 @@ test('editor shortcuts ignore fields and dialogs but keep keyboard button activa
   await page.keyboard.press('f');
   await expect(shortcutsDialog).toBeVisible();
   await expect(captureState(page)).toHaveText('Ready');
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await page.keyboard.press('Space');
   await expect(shortcutsDialog).toHaveCount(0);
   await expect(captureState(page)).toHaveText('Ready');
-  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 
-  const playButton = page.getByRole('button', { name: 'Play' });
+  const playButton = page.getByRole('button', { name: 'Play', exact: true });
   await focusWithKeyboard(playButton);
   await page.keyboard.press('Space');
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();

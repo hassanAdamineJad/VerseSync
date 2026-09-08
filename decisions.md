@@ -261,3 +261,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** Capture and playback belong to the session, not a panel. Distinguishing leftover pointer focus from intentional keyboard navigation keeps DAW-style global shortcuts without removing accessible button activation.
 - **Rejected alternatives:** Blurring buttons after click, ignoring every focused control, and keeping a second listener inside CaptureWorkspace.
 - **Consequences:** Future transport or capture shortcuts should join this hook. Native click handlers on Stamp, Finish, and Play stay unchanged.
+
+### 2026-09-08 — Decision: Navigate the timeline viewport with trackpad and mouse-wheel gestures
+
+- **Context:** The visible window could already move through zoom presets and the overview range, but the main Timeline still lacked the trackpad pan and pinch-zoom behavior from the editor reference, and discrete 15/30/60/full steps could not keep a cursor time visually anchored while zooming.
+- **Choice:** Attach a non-passive `wheel` listener only to the timeline canvas. Pan with `deltaX`, or the dominant axis when the device reports mostly vertical movement. Zoom with `metaKey || ctrlKey` (trackpad pinch and Cmd/Ctrl + wheel) around the pointer using `Math.exp(deltaY * 0.008)`, clamped between the existing 15-second minimum and the full track. Batch those updates through `requestAnimationFrame`. Manual pan or zoom disables playhead follow; Return to playhead restores it. Zoom buttons still step through the 15/30/60/full presets from the current duration.
+- **Rationale:** This matches the reference lane gestures and the established follow/manual viewport split without adding a scrollbar or extra chrome, and it avoids page-level `preventDefault()` so lyrics and other panels keep native scrolling.
+- **Rejected alternatives:** Document-level wheel listeners, keeping zoom on discrete presets only, zooming around the window center, and treating every vertical wheel as page scroll while the pointer is over the Timeline.
+- **Consequences:** Viewport duration is a continuous value rather than only a preset enum; the zoom label and overview thumb follow that value, and Playwright can drive the same `wheel` path used by trackpads and mouse wheels.
