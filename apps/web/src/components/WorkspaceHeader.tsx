@@ -53,7 +53,7 @@ export function WorkspaceHeader({
     <header className="app-header">
       <div className="toolbar-left">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true">V</span>
+          <img className="brand-mark" src="/icon.png" alt="" aria-hidden="true" />
           <div className="brand-copy">
             <span className="brand-name">VerseSync</span>
           </div>

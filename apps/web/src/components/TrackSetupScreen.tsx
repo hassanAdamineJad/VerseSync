@@ -439,9 +439,12 @@ export function TrackSetupScreen({
       <section className="setup-card" aria-labelledby="setup-title">
         <div className="setup-column setup-column-form">
           <div className="setup-brand">
-            <span className="setup-brand-mark" aria-hidden="true">
-              V
-            </span>
+            <img
+              className="setup-brand-mark"
+              src="/icon.png"
+              alt=""
+              aria-hidden="true"
+            />
             <div className="setup-brand-copy">
               <p className="setup-kicker">VerseSync</p>
               <h1 id="setup-title">{title}</h1>

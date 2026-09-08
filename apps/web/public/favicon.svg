@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">VerseSync headphones, play, and waveform icon</title>
-  <g fill="none" stroke="#F4EAD3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M13 34V29C13 18.5 21.5 10 32 10s19 8.5 19 19v5" stroke-width="6"/>
-    <path d="M13 34v11c0 4 3 7 7 7h3V31h-3c-4 0-7 3-7 7M51 34v11c0 4-3 7-7 7h-3V31h3c4 0 7 3 7 7" stroke-width="5"/>
-    <path d="M23 46h2m4-4v8m6-12v12m6-7v5" stroke-width="4"/>
-  </g>
-  <path d="M27 22.5v13l11-6.5-11-6.5Z" fill="#F2A51A"/>
-</svg>
