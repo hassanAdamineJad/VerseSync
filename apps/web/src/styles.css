@@ -1267,6 +1267,20 @@ button.preview-line:hover:not(:disabled) {
 
 .lyric-row-card {
   @apply relative min-w-0 border-b border-ink-700/70 bg-transparent px-0 py-0 transition-colors;
+  content-visibility: auto;
+  /* 3rem .lyric-row-main min-height + 1px border-b; `auto` remembers the last rendered height. */
+  contain-intrinsic-height: auto 49px;
+}
+
+.lyric-row-card[data-selected],
+.lyric-row-card[data-editing],
+.lyric-row-card[data-playing],
+.lyric-row-card[data-active-capture],
+.lyric-row-card[data-needs-attention],
+.lyric-row-card[data-merge-target],
+.lyric-row-card:focus-within,
+.lyric-row-card:has(.lyric-drag-handle[data-dragging]) {
+  content-visibility: visible;
 }
 
 .lyric-row-card::before {
@@ -2259,6 +2273,7 @@ input[type="range"]::-webkit-slider-thumb {
 
   .lyric-row-card {
     @apply px-2 py-2;
+    contain-intrinsic-height: auto 65px;
   }
 
   .lyric-row-main {
