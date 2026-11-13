@@ -285,3 +285,11 @@ This file records meaningful project decisions made or materially influenced by 
 - **Rationale:** This matches the reference lane gestures and the established follow/manual viewport split without adding a scrollbar or extra chrome, and it avoids page-level `preventDefault()` so lyrics and other panels keep native scrolling.
 - **Rejected alternatives:** Document-level wheel listeners, keeping zoom on discrete presets only, zooming around the window center, and treating every vertical wheel as page scroll while the pointer is over the Timeline.
 - **Consequences:** Viewport duration is a continuous value rather than only a preset enum; the zoom label and overview thumb follow that value, and Playwright can drive the same `wheel` path used by trackpads and mouse wheels.
+
+
+## 2026-11-13 — Standalone static demo deployment
+
+- Bundle the original sample audio and its metadata/lyric IDs under `apps/web/public/demo`; fetch the static manifest instead of the authenticated API. The manifest is the demo's source of truth, and browser-decoded duration remains authoritative.
+- Keep all editing session-local and retain LRC export. No database, remote save, or backend token is used by the frontend. The existing frontend did not call the alignment-write API.
+- Run only Vite for development and Playwright; retain the original backend as an unused historical fixture. Remove Railway preview/proxy configuration and provide root-level Vercel build settings.
+- Prefer a static demo over migrating SQLite to a hosted database, as requested. This avoids a second service and adds no dependencies.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, getSeededTrack } from '../api';
+import { getSeededTrack } from '../sampleTrack';
 import {
   getLocalAudioFileError,
   normalizeLocalTrack,
@@ -29,9 +29,6 @@ type Options = {
 };
 
 function sourceError(error: unknown): string {
-  if (error instanceof ApiError) {
-    return `The seeded track could not be loaded (${error.status}). You can retry or load a local file.`;
-  }
   if (error instanceof Error) return error.message;
   return 'The source could not be loaded.';
 }

@@ -1,4 +1,4 @@
-import type { SeededTrackResponse } from './api';
+import type { SeededTrackResponse } from './sampleTrack';
 import { formatTimecode } from './timecode';
 
 export type LyricLine = {

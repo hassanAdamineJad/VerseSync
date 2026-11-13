@@ -1,3 +1,30 @@
+# VerseSync standalone demo
+
+The app runs entirely in the browser: import audio and lyrics, align them, and export LRC.
+The sample track is bundled in `apps/web/public/demo`. No API, database, token, or Railway service is needed.
+Edits and imported files last only for the current session. Export LRC before refreshing or closing the page.
+
+## Run locally
+
+Use Node.js 22.5+ and pnpm 10.14.0. Run `pnpm install`, then `pnpm dev`.
+`pnpm build` produces the static site in `apps/web/dist`.
+`pnpm typecheck` and `pnpm test` check the app without starting a backend.
+
+## Deploy to Vercel
+
+Import this repository, select the branch containing these changes, and keep the Root Directory at the repository root.
+The checked-in `vercel.json` sets the Vite preset, install/build commands, and output directory.
+Use Node.js 22.x or 24.x. No environment variables are required.
+After deployment, check Try sample, playback, local import, and LRC export before retiring the old host.
+
+The original API and assignment are retained below/as source history; they are not part of the standalone runtime.
+The sample recording and lyrics came from the original fixture (AI generated via aisong.org).
+Metadata and stable lyric IDs are stored in `public/demo/track.json`; the editor reads the actual audio duration.
+
+---
+
+## Original assignment (historical; backend instructions below do not apply to the standalone demo)
+
 # Lyric Alignment — frontend take-home
 
 A tool for timing lyrics against a song. The backend and the test harness are

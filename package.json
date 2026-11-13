@@ -7,7 +7,7 @@
     "node": ">=22.5.0"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
+    "dev": "pnpm --filter @fixture/web run dev",
     "seed": "pnpm --filter @fixture/api run seed",
     "reset": "pnpm --filter @fixture/api run reset",
     "build": "pnpm --filter @fixture/web run build",
